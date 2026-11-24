@@ -1,155 +1,172 @@
-# 🚗 IoT Smart Parking System (ESP32 - Firebase RTDB - Web Dashboard)
+# 🚗 IoT Smart Parking System (ESP32 · Firebase RTDB · Web Dashboard)
 
 [![PlatformIO](https://img.shields.io/badge/PlatformIO-Supported-orange.svg)](https://platformio.org/)
 [![ESP32](https://img.shields.io/badge/Hardware-ESP32--WROOM--32-red.svg)](https://www.espressif.com/)
 [![Firebase](https://img.shields.io/badge/Backend-Firebase%20RTDB-yellow.svg)](https://firebase.google.com/)
-[![Web Dashboard](https://img.shields.io/badge/Frontend-TailwindCSS%20%7C%20JS-blue.svg)](https://tailwindcss.com/)
+[![Web Dashboard](https://img.shields.io/badge/Frontend-TailwindCSS%20%7C%20JavaScript-blue.svg)](https://tailwindcss.com/)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
-Hệ thống quản lý bãi đỗ xe thông minh toàn diện (**End-to-End IoT Solution**), tích hợp chặt chẽ giữa phần cứng đa vi điều khiển **ESP32**, dịch vụ đám mây thời gian thực **Firebase Realtime Database** và giao diện điều hành **Web Dashboard** hiện đại hỗ trợ thanh toán tự động qua **VietQR**.
+An **end-to-end distributed IoT Smart Parking System** integrating multi-microcontroller firmware (**ESP32**), a real-time cloud backbone (**Firebase Realtime Database**), and an administrative **Web Management Dashboard** featuring automated **VietQR** payment integration.
 
 ---
 
-## 🌟 Tính Năng Nổi Bật (Key Highlights)
+## 📸 System Architecture & Physical Mockup Layout
 
-* **Kiến trúc Đa Vi Điều Khiển Phân Tán (Multi-MCU Architecture):**
-  * Tách biệt các phân hệ Cổng vào (*Gate In*), Cổng ra (*Gate Out*) và Giám sát ô đỗ (*Lot*) trên các ESP32 độc lập để đảm bảo hiệu năng xử lý thời gian thực và độ trễ phản hồi cực thấp.
-  * Node Bãi đỗ giao tiếp với Node Cổng qua kênh truyền **UART2** tốc độ cao với giao thức kiểm tra toàn vẹn **Checksum XOR**.
-* **Độ Sẵn Sàng Cao & Hoạt Động Ngoại Tuyến (Offline-First / Fault Tolerance):**
-  * **Bộ nhớ đệm Flash (Blob Cache):** Tự động đồng bộ và lưu thông tin cư dân, thẻ khách và cấu hình vào NVS Flash. Cổng vẫn nhận thẻ và mở barrier bình thường ngay cả khi mất kết nối Internet.
-  * **Hàng đợi vòng lưu Flash (Persistent Circular Queue):** Lưu trữ đến 30 giao dịch chưa thể gửi khi rớt mạng; tự động đồng bộ bù (*retry exponential backoff*) ngay khi có mạng trở lại mà không lo mất mát dữ liệu hay thất thoát doanh thu kể cả khi mất nguồn.
-* **Cơ Chế Nhường Quyền CPU (`setBusy`):**
-  * Tự động hoãn các tác vụ nền tiêu tốn CPU (quét WiFi, đồng bộ cache) trong lúc xe đang qua cổng hoặc đang quẹt thẻ để ưu tiên 100% tài nguyên xử lý cảm biến và servo.
-* **An Ninh & Chống Gian Lận (Anti-Passback):**
-  * Ngăn chặn hành vi quẹt thẻ 2 lần liên tiếp ở cùng một cổng (cả cư dân lẫn thẻ khách).
-  * Tự động kiểm soát sức chứa tối đa của bãi đỗ xe.
-* **Cơ Chế Chống Kẹp Xe An Toàn Tuyệt Đối (Safety Interlock):**
-  * Hệ thống liên động 2 cảm biến quang hành trình (`IR_ARRIVE` và `IR_PASS`) cùng thuật toán chống rung tín hiệu (*Debounce*) đảm bảo cần barrier chỉ hạ xuống khi xe đã rời khỏi cổng hoàn toàn.
-  * Tự động đóng cổng an toàn và hủy phiên nếu quá 20 giây (*Timeout*) mà phương tiện không tiến vào.
-* **Tích Hợp Thanh Toán Không Tiền Mặt (VietQR Auto Payment):**
-  * Cổng ra tự động tính tiền đỗ theo block phút/giờ và tạo yêu cầu thanh toán trên Firebase.
-  * Web Dashboard tự động kết xuất mã **VietQR chuẩn Napas247** động tương ứng với số tiền.
-  * Cơ chế ân hạn **120 giây (Paid Grace Period)** cho phép mở lại barrier miễn phí nếu khách đã thanh toán nhưng xe gặp sự cố chưa kịp qua cổng.
-* **Kiến Trúc Lập Trình 100% Phi Chặn (Non-blocking):**
-  * Không sử dụng hàm `delay()`. Toàn bộ quá trình quét RFID, nhịp còi buzzer, cảm biến IR, màn hình OLED/LCD và kết nối Firebase đều chạy trên các máy trạng thái (*State Machine*) điều khiển bởi timer mềm `millis()`.
+![Smart Parking System Architecture & 50x50 cm Mockup Design](assets/architecture_layout.jpg)
 
 ---
 
-## 🏛️ Sơ Đồ Kiến Trúc Hệ Thống
+## 🌟 Key Engineering Highlights
 
-```
-                     ┌──────────────────────────────────────────────┐
-                     │         Firebase Realtime Database           │
-                     │          & Web Management Dashboard          │
-                     └──────────────▲──────────────────▲────────────┘
-                                    │ (WiFi)           │ (WiFi)
-                           ┌────────┴───────┐   ┌──────┴────────┐
-                           │  ESP32 GATE IN │   │ ESP32 GATE OUT│
-                           └────────▲───────┘   └───────────────┘
-                     (UART2)        │
-                ┌───────────────────┴──┐
-                │      ESP32 LOT       │
-                │  (4 Cảm biến ô đỗ)   │
-                └──────────────────────┘
-```
+### 1. 3-Node Distributed Multi-MCU Architecture
+* **Entrance Gate ESP32 (`gate_in`):** Controls the entrance barrier servo (PWM $90^\circ \to 180^\circ$), RFID RC522 scanner, dual IR obstacle sensors, active buzzer, and I2C LCD 1602 display. Also acts as an IoT bridge, collecting parking bay data via UART2 and pushing it to Firebase.
+* **Exit Gate ESP32 (`gate_out`):** Manages the exit barrier, RFID scanner, dual IR sensors, active buzzer, and I2C 0.96" SSD1306 OLED display. Computes parking fees and coordinates cashless VietQR payment with the Web app.
+* **Parking Lot ESP32 (`lot`):** Operates completely offline without WiFi. Reads 4 optical IR sensors (Bays A1–A4) with 600ms software debounce, packing bay occupancy into a custom ASCII frame (`$dddd*HH\n` with XOR checksum) transmitted over **UART2** (9600 baud) to `gate_in`.
+
+### 2. High Availability & Offline-First Design (Fault Tolerance)
+* **Flash Blob Cache:** Resident profiles, registered guest cards, and billing configurations are cached in ESP32 NVS Flash as binary blobs. If WiFi or Firebase disconnects, gates continue verifying cards and operating seamlessly offline.
+* **Persistent Circular Queue in Flash:** Unsent write operations (`Set`, `Push`, `Delete`) during network outages are queued in a persistent circular queue (up to 30 transactions) stored in NVS Flash. When connectivity resumes, entries are flushed sequentially with exponential backoff ($2\text{s}, 4\text{s}, 8\text{s}, \dots, 30\text{s}$). Data is preserved even across power loss.
+* **Step-by-Step Cache Synchronization:** Synchronizing config, residents, and cards is segmented across loop iterations to prevent CPU blocking.
+
+### 3. CPU Prioritization (`setBusy`)
+* Heavy background tasks (WiFi scanning, queue flushing, cache sync) are automatically paused while a vehicle traverses the barrier or during card transactions, giving 100% CPU priority to optical sensors and servo motion.
+
+### 4. Anti-Passback & Capacity Enforcement
+* **Anti-Passback:** Prevents card sharing by ensuring a vehicle already recorded inside (`trongBai = true`) cannot re-enter, and a vehicle outside cannot exit.
+* **Dynamic Capacity Control:** Validates active guest sessions against `khachToiDa`. If visitor slots are full, entry is rejected and displayed on LCD.
+
+### 5. Dual-IR Safety Interlock Barrier (Zero Pinching Hazard)
+* Two sequential optical IR sensors (`IR_ARRIVE` and `IR_PASS`) track vehicle trajectory.
+* The servo barrier only lowers ($90^\circ$) once the vehicle has completely cleared `IR_PASS` for a continuous 1-second debounce window.
+* **Safety Timeout:** If a barrier opens but no car enters within 20 seconds, it automatically closes and voids the transaction.
+
+### 6. Automated VietQR Payment & 120s Paid Grace Period
+* **Real-time Fee Calculation:** Evaluates parking duration based on UTC millisecond timestamps, charging per configurable block (e.g., 60-min blocks, 5,000 VND minimum charge).
+* **Dynamic VietQR:** When a visitor swipes at the exit gate, the system prompts payment on OLED and pushes the order to Firebase. The Web Dashboard detects the pending order and renders a dynamic Napas247 VietQR code.
+* **120-Second Paid Grace Period:** If payment succeeds and the barrier opens, but the vehicle stalls or fails to exit before the 20s timeout, the visitor can re-swipe within 2 minutes to re-open the barrier without paying twice.
+
+### 7. 100% Non-Blocking Software Architecture
+* No blocking `delay()` calls are used. Active buzzer melodies, servo angles, IR debounce filters, RFID polling, and OLED/LCD redraws run concurrently on soft timers using `millis()`.
 
 ---
 
-## 🔌 Cấu Hình Chân Phần Cứng (Pinout)
+## 🎥 Demonstration Video
 
-### 1. Cổng Vào (`gate_in`)
-| Thiết bị | Chân ESP32 | Giao thức / Chức năng | Vai trò |
+<!-- You can replace the link below with your YouTube link or GitHub video upload -->
+[![Smart Parking Demonstration Video](https://img.shields.io/badge/Demo%20Video-Watch%20on%20YouTube-red?style=for-the-badge&logo=youtube)](https://www.youtube.com/)
+
+> 💡 **Tip:** To embed an MP4 directly on GitHub, edit this README on GitHub, drag & drop your video file into the markdown editor, and GitHub will auto-generate an embedded player tag!
+
+---
+
+## 🔌 Hardware Specifications & Pinout
+
+### 1. Entrance Gate ESP32 (`gate_in`)
+| Component | ESP32 Pin | Protocol / Mode | Description |
 | :--- | :--- | :--- | :--- |
-| **MFRC522** | SCK: 18, MISO: 19, MOSI: 23, SS: 5, RST: 4 | SPI Hardware | Quét thẻ RFID vào |
-| **Servo Barrier** | GPIO 13 | PWM 50Hz | Đóng (90°), Mở (180°) |
-| **IR Arrive** | GPIO 32 | Digital Input (Pull-up) | Cảm biến trước barrier |
-| **IR Pass** | GPIO 33 | Digital Input (Pull-up) | Cảm biến sau barrier |
-| **LCD 1602** | SDA: 21, SCL: 22 | I2C (50kHz, Addr: 0x27/0x3F) | Hiển thị chỗ trống & gợi ý ô |
-| **Buzzer** | GPIO 14 | Digital Output | Âm báo trạng thái |
-| **Status LED** | GPIO 2 | Digital Output | Đèn LED tín hiệu |
-| **UART2 Link** | RX: 16, TX: 17 | Serial2 (9600 baud) | Nhận dữ liệu từ Node Bãi đỗ |
+| **MFRC522 RFID** | SCK: 18, MISO: 19, MOSI: 23, SS: 5, RST: 4 | Hardware SPI | Scans resident RFID tags & visitor cards |
+| **Barrier Servo** | GPIO 13 | PWM 50Hz | $90^\circ$ (Closed), $180^\circ$ (Open) |
+| **IR Sensor (Arrive)** | GPIO 32 | Digital In (Pull-up) | Detects vehicle approaching gate |
+| **IR Sensor (Pass)** | GPIO 33 | Digital In (Pull-up) | Detects vehicle past gate |
+| **LCD 1602** | SDA: 21, SCL: 22 | I2C (50kHz, Addr: 0x27/0x3F) | Displays available visitor slots & slot guidance |
+| **Active Buzzer** | GPIO 14 | Digital Out | Success / reject / timeout acoustic alerts |
+| **Status LED** | GPIO 2 | Digital Out | Visual gate status indicator |
+| **UART2 Link** | RX: 16, TX: 17 | Serial2 (9600 baud) | Receives bay occupancy from `lot` node |
 
-### 2. Cổng Ra (`gate_out`)
-| Thiết bị | Chân ESP32 | Giao thức / Chức năng | Vai trò |
+### 2. Exit Gate ESP32 (`gate_out`)
+| Component | ESP32 Pin | Protocol / Mode | Description |
 | :--- | :--- | :--- | :--- |
-| **MFRC522** | SCK: 18, MISO: 19, MOSI: 23, SS: 5, RST: 4 | SPI Hardware | Quét thẻ RFID ra |
-| **Servo Barrier** | GPIO 13 | PWM 50Hz | Đóng (90°), Mở (180°) |
-| **IR Arrive** | GPIO 32 | Digital Input (Pull-up) | Cảm biến trước barrier |
-| **IR Pass** | GPIO 33 | Digital Input (Pull-up) | Cảm biến sau barrier |
-| **OLED SSD1306** | SDA: 21, SCL: 22 | I2C (400kHz, Addr: 0x3C) | Hiển thị cước phí & mã QR |
-| **Buzzer** | GPIO 14 | Digital Output | Âm báo thanh toán / kết quả |
-| **Status LED** | GPIO 2 | Digital Output | Đèn LED tín hiệu |
+| **MFRC522 RFID** | SCK: 18, MISO: 19, MOSI: 23, SS: 5, RST: 4 | Hardware SPI | Scans RFID cards for exit & billing |
+| **Barrier Servo** | GPIO 13 | PWM 50Hz | $90^\circ$ (Closed), $180^\circ$ (Open) |
+| **IR Sensor (Arrive)** | GPIO 32 | Digital In (Pull-up) | Detects car waiting to exit |
+| **IR Sensor (Pass)** | GPIO 33 | Digital In (Pull-up) | Detects car cleared exit barrier |
+| **OLED SSD1306 0.96"**| SDA: 21, SCL: 22 | I2C (400kHz, Addr: 0x3C) | Displays fee amount, QR payment prompt & status |
+| **Active Buzzer** | GPIO 14 | Digital Out | Distinctive beep feedback patterns |
+| **Status LED** | GPIO 2 | Digital Out | Visual gate status indicator |
 
-### 3. Bãi Đỗ Xe (`lot`)
-| Thiết bị | Chân ESP32 | Vai trò |
-| :--- | :--- | :--- |
-| **IR Ô A1** | GPIO 32 | Ô Cư dân (Active LOW khi có xe) |
-| **IR Ô A2** | GPIO 33 | Ô Cư dân (Active LOW khi có xe) |
-| **IR Ô A3** | GPIO 25 | Ô Khách vãng lai (Active LOW khi có xe) |
-| **IR Ô A4** | GPIO 26 | Ô Khách vãng lai (Active LOW khi có xe) |
-| **UART2 TX** | GPIO 17 | Gửi chuỗi `$dddd*HH\n` sang Gate In (9600 baud) |
+### 3. Parking Lot ESP32 (`lot`)
+| Component | ESP32 Pin | Mode | Description |
+| :--- | :--- | :--- | :--- |
+| **Bay A1 IR Sensor** | GPIO 32 | Digital In (Pull-up) | Resident Bay A1 (Active LOW on presence) |
+| **Bay A2 IR Sensor** | GPIO 33 | Digital In (Pull-up) | Resident Bay A2 (Active LOW on presence) |
+| **Bay A3 IR Sensor** | GPIO 25 | Digital In (Pull-up) | Visitor Bay A3 (Active LOW on presence) |
+| **Bay A4 IR Sensor** | GPIO 26 | Digital In (Pull-up) | Visitor Bay A4 (Active LOW on presence) |
+| **UART2 TX** | GPIO 17 | Serial2 (9600 baud) | Transmits `$dddd*HH\n` string to `gate_in` |
+
+### 4. Power Supply & Electrical Safety
+* **Independent 12A Switch-Mode Power Supply (SMPS):** Supplies regulated 5V power rails.
+* **Dedicated Servo Power Rail:** Barrier servos run on dedicated lines separated from ESP32 logic power to eliminate voltage sags and MCU brownout resets during peak motor stall current.
+* **Common Ground (GND):** All MCUs, sensors, servos, and peripherals share a unified ground plane.
 
 ---
 
-## 📁 Cấu Trúc Thư Mục Dự Án
+## 📁 Repository Directory Structure
 
 ```
-Smart_Parking/
-├── Smart_Parking_ESP32_Web/     # Mã nguồn Firmware PlatformIO cho ESP32
+smart-parking-iot-system/
+├── assets/
+│   └── architecture_layout.jpg      # System architecture & 50x50 cm mockup layout
+├── Smart_Parking_ESP32_Web/         # ESP32 PlatformIO Firmware Project
 │   ├── include/
-│   │   ├── secrets.example.h    # File mẫu cấu hình WiFi & Firebase
-│   │   └── secrets.h            # File chứa thông tin mật (đã gitignore)
+│   │   ├── secrets.example.h        # Template configuration for WiFi & Firebase
+│   │   └── secrets.h                # Local credentials (git-ignored for security)
 │   ├── lib/
-│   │   └── ParkingCore/         # Thư viện dùng chung (NTP, Cache, Queue, Heartbeat)
+│   │   └── ParkingCore/             # Shared library (WiFiMulti, NTP, Cache, Queue, Heartbeat)
 │   ├── src/
-│   │   ├── gate_in/             # Firmware Cổng Vào & module lot_link
-│   │   ├── gate_out/            # Firmware Cổng Ra & module thanh toán
-│   │   ├── lot/                 # Firmware Bãi đỗ xe
-│   │   └── reset/               # Tiện ích format bộ nhớ NVS Flash
-│   └── platformio.ini           # Cấu hình build đa môi trường
-├── Web/                         # Giao diện Web điều hành (Dashboard)
-│   ├── index.html               # Ứng dụng Web Single-Page (TailwindCSS)
-│   └── du_lieu_mau.json         # Dữ liệu mẫu khởi tạo hệ thống
-├── Schematic/                   # Bản vẽ thiết kế mạch điện nguyên lý
-│   └── Schematic_System/        # Project KiCad hoàn chỉnh
-├── bang_uid_6_the.txt           # Danh mục UID các loại thẻ thử nghiệm
-├── du_lieu_sach.json            # Dữ liệu khởi tạo Firebase mẫu
-└── README.md                    # Tài liệu hướng dẫn dự án
+│   │   ├── gate_in/                 # Entrance gate firmware & lot_link module
+│   │   ├── gate_out/                # Exit gate firmware & payment handling
+│   │   ├── lot/                     # Parking bay monitoring firmware (offline)
+│   │   └── reset/                   # Flash NVS formatting utility
+│   └── platformio.ini               # Multi-environment PlatformIO build configuration
+├── Web/                             # Web Management Application
+│   ├── index.html                   # Single-Page Management Dashboard (Tailwind CSS)
+│   ├── Endgame_web_20_11.html       # Source HTML dashboard
+│   ├── du_lieu_mau.json             # Sample database configuration
+│   └── firebaseConfig.txt           # Firebase SDK reference snippet
+├── Schematic/                       # Electrical Hardware Design
+│   └── Schematic_System/            # Complete KiCad schematic project (.kicad_sch)
+├── bang_uid_6_the.txt               # UID inventory of test cards & keyfobs
+├── du_lieu_sach.json                # Clean Firebase initial seed database
+└── README.md                        # Master project documentation
 ```
 
 ---
 
-## 🚀 Hướng Dẫn Cài Đặt & Chạy Thử
+## 🚀 Getting Started
 
-### 1. Chuẩn bị Phần cứng
-* 3 x Board ESP32 (NodeMCU-32S / ESP32 DevKit V1)
-* 2 x Module RFID RC522 (kèm thẻ Mifare Classic 1K / NTAG213)
-* 2 x Động cơ Servo (SG90 / MG996R) làm barrier
-* 6 x Cảm biến vật cản hồng ngoại (IR Sensor)
-* 1 x Màn hình LCD 1602 kèm module I2C
-* 1 x Màn hình OLED SSD1306 0.96 inch I2C (128x64)
-* 2 x Còi Buzzer 5V, 2 x Đèn LED báo hiệu
+### Prerequisites
+* [VS Code](https://code.visualstudio.com/) with the [PlatformIO IDE](https://platformio.org/install/ide?install=vscode) extension installed.
+* [KiCad 8.x+](https://www.kicad.org/) (optional, to view or modify schematics).
+* A free [Google Firebase](https://firebase.google.com/) project with **Realtime Database** enabled in `asia-southeast1`.
 
-### 2. Cài đặt Firmware ESP32
-1. Mở thư mục `Smart_Parking_ESP32_Web` trong **VS Code** có cài sẵn extension **PlatformIO IDE**.
-2. Sao chép file cấu hình:
-   ```bash
-   cp include/secrets.example.h include/secrets.h
-   ```
-3. Mở file `include/secrets.h` và cập nhật thông tin mạng WiFi cùng URL Firebase của bạn.
-4. Nạp code cho từng board ESP32 tương ứng qua PlatformIO:
-   * **Cổng Vào:** Chọn env `gate_in` -> `Upload`
-   * **Cổng Ra:** Chọn env `gate_out` -> `Upload`
-   * **Bãi Đỗ Xe:** Chọn env `lot` -> `Upload`
+### 1. Configure Secrets
+Navigate to `Smart_Parking_ESP32_Web/include/`:
+```bash
+cp include/secrets.example.h include/secrets.h
+```
+Edit `secrets.h` with your WiFi SSID, password, Firebase Web API Key, Database URL, and ESP32 service account credentials.
 
-### 3. Chạy Web Dashboard
-* Mở trực tiếp file `Web/index.html` trên trình duyệt (hoặc deploy lên GitHub Pages / Firebase Hosting).
-* Đăng nhập với tài khoản quản trị và quan sát trạng thái ô đỗ, lịch sử ra vào và hóa đơn theo thời gian thực.
+### 2. Flash Firmware via PlatformIO
+Connect your ESP32 boards via USB and flash the target firmware environments:
+```bash
+# Flash Entrance Gate
+pio run -e gate_in -t upload
+
+# Flash Exit Gate
+pio run -e gate_out -t upload
+
+# Flash Parking Lot Node
+pio run -e lot -t upload
+```
+
+### 3. Launch Web Dashboard
+Open `Web/index.html` directly in any modern browser (or host it via GitHub Pages / Firebase Hosting). Sign in with your admin credentials to monitor live occupancy, incoming revenue, and manage resident cards.
 
 ---
 
-## 👨‍💻 Tác Giả & Liên Hệ
+## 👨‍💻 Author
 
-* **Tác giả:** Phạm Đức Trí
+* **Pham Duc Tri**
 * **Email:** ductripham912@gmail.com
-* **Mục tiêu:** Dự án đồ án tốt nghiệp / Portfolio xin việc ngành Kỹ thuật Nhúng & IoT (Embedded Systems & IoT Engineer).
+* **GitHub:** [@ductripham912-glitch](https://github.com/ductripham912-glitch)
+* **Target Role:** Embedded Systems & IoT Firmware Engineer
