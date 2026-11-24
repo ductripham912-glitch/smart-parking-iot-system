@@ -125,7 +125,6 @@ smart-parking-iot-system/
 │   └── firebaseConfig.txt           # Firebase SDK reference snippet
 ├── Schematic/                       # Electrical Hardware Design
 │   └── Schematic_System/            # Complete KiCad schematic project (.kicad_sch)
-├── bang_uid_6_the.txt               # UID inventory of test cards & keyfobs
 ├── du_lieu_sach.json                # Clean Firebase initial seed database
 └── README.md                        # Master project documentation
 ```
