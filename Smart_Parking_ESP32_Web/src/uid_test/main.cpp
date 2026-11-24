@@ -3,7 +3,6 @@
 #include <MFRC522.h>
 
 // Test đọc UID thẻ RC522 - dùng đúng chân và định dạng UID của dự án.
-// UID in ra dạng chữ HOA, không dấu cách (ví dụ 04A1B2C3D4E580) -> copy dán thẳng vào web khi thêm thẻ.
 
 static const uint8_t PIN_RC522_SS  = 5;    // SCK 18, MISO 19, MOSI 23 cố định theo SPI phần cứng ESP32
 static const uint8_t PIN_RC522_RST = 4;
