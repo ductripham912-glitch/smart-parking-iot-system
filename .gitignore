@@ -1,0 +1,35 @@
+# ==========================================
+# PlatformIO build artifacts & libraries
+# ==========================================
+.pio/
+**/.pio/
+
+# ==========================================
+# IDE & Editor files
+# ==========================================
+.vscode/
+**/.vscode/
+.idea/
+*.swp
+*.bak
+*.tmp
+
+# ==========================================
+# Sensitive credentials & passwords
+# ==========================================
+**/include/secrets.h
+Web/Security_admin.txt
+
+# ==========================================
+# KiCad temp & history files
+# ==========================================
+.history/
+**/.history/
+*.kicad_prl
+
+# ==========================================
+# Unrelated or redundant local files
+# ==========================================
+balancing bike.kicad_sch
+codeweb.txt
+Test_SParking/

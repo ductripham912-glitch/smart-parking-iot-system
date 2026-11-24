@@ -1,0 +1,10 @@
+const firebaseConfig = {
+    apiKey: "AIzaSyAlDm_5d3a_JI1IzALkQTlzdu8fwcKNOV8",
+    authDomain: "smart-parking-7512f.firebaseapp.com",
+    databaseURL: "https://smart-parking-7512f-default-rtdb.asia-southeast1.firebasedatabase.app",
+    projectId: "smart-parking-7512f",
+    storageBucket: "smart-parking-7512f.firebasestorage.app",
+    messagingSenderId: "566788257976",
+    appId: "1:566788257976:web:aa893580cb6cd0b6421c4d",
+    measurementId: "G-86FDNJVMN5"
+  };

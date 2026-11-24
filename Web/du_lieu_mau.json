@@ -1,0 +1,29 @@
+{
+  "config": {
+    "donGiaMoiGio": 5000,
+    "mienPhiPhut": 15,
+    "phiPhatMatThe": 100000,
+    "khachToiDa": 2,
+    "o": {
+      "A1": { "loai": "cu_dan", "chuXe": "RES-001" },
+      "A2": { "loai": "cu_dan", "chuXe": "RES-002" },
+      "A3": { "loai": "khach" },
+      "A4": { "loai": "khach" }
+    }
+  },
+  "residents": {
+    "RES-001": { "ten": "Nguyen Van A", "bienSo": "60A-12345", "canHo": "A101", "trongBai": false },
+    "RES-002": { "ten": "Tran Thi B", "bienSo": "60B-67890", "canHo": "A102", "trongBai": false }
+  },
+  "slots": {
+    "A1": "giu_cho",
+    "A2": "giu_cho",
+    "A3": "trong",
+    "A4": "trong"
+  },
+  "cards": {
+    "THE-KHACH-01": { "ten": "The khach 01", "khoa": false },
+    "THE-KHACH-02": { "ten": "The khach 02", "khoa": false },
+    "THE-KHACH-03": { "ten": "The khach 03", "khoa": false }
+  }
+}

@@ -1,0 +1,31 @@
+{
+  "config": {
+    "donGiaMoiGio": 5000,
+    "blockPhut": 2,
+    "mienPhiPhut": 1,
+    "phiPhatMatThe": 100000,
+    "khachToiDa": 2,
+    "o": {
+      "A1": { "loai": "cu_dan", "chuXe": "1D4286DE1D1080" },
+      "A2": { "loai": "cu_dan", "chuXe": "1D4486DE1D1080" },
+      "A3": { "loai": "khach" },
+      "A4": { "loai": "khach" }
+    }
+  },
+  "residents": {
+    "1D4286DE1D1080": { "ten": "Nguyen Van A", "bienSo": "60A-12345", "canHo": "A101", "trongBai": false },
+    "1D4486DE1D1080": { "ten": "Tran Thi B", "bienSo": "60B-67890", "canHo": "A102", "trongBai": false }
+  },
+  "slots": {
+    "A1": "giu_cho",
+    "A2": "giu_cho",
+    "A3": "trong",
+    "A4": "trong"
+  },
+  "cards": {
+    "7E5CF306": { "ten": "Thẻ trắng", "khoa": false },
+    "FD8FF906": { "ten": "Tag móc khóa", "khoa": false },
+    "0DCC2907": { "ten": "Tag xanh 1", "khoa": false },
+    "EB173207": { "ten": "Tag xanh 2", "khoa": false }
+  }
+}

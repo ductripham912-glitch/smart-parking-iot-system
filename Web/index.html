@@ -1,0 +1,2111 @@
+<!DOCTYPE html>
+<html lang="vi" class="h-full">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Smart Parking - Hệ Thống Quản Lý Bãi Đỗ Xe Thông Minh</title>
+  
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  
+  <!-- Font Awesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['"Plus Jakarta Sans"', 'system-ui', 'sans-serif'],
+            mono: ['"JetBrains Mono"', 'monospace'],
+          },
+          colors: {
+            brand: {
+              50: '#eff6ff',
+              100: '#dbeafe',
+              500: '#3b82f6',
+              600: '#2563eb',
+              700: '#1d4ed8',
+            },
+            lot: {
+              free: '#10b981',
+              busy: '#ef4444',
+              held: '#f59e0b',
+            }
+          }
+        }
+      }
+    }
+  </script>
+
+  <style>
+    /* Custom Scrollbar */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: rgba(15, 23, 42, 0.6); }
+    ::-webkit-scrollbar-thumb { background: rgba(51, 65, 85, 0.8); border-radius: 4px; }
+    ::-webkit-scrollbar-thumb:hover { background: rgba(71, 85, 105, 1); }
+
+    /* Pulse glow effects */
+    .glow-free { box-shadow: 0 0 20px -3px rgba(16, 185, 129, 0.35); }
+    .glow-busy { box-shadow: 0 0 20px -3px rgba(239, 68, 68, 0.35); }
+    .glow-held { box-shadow: 0 0 20px -3px rgba(245, 158, 11, 0.35); }
+
+    .bay-card {
+      transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    .bay-card:hover {
+      transform: translateY(-2px);
+    }
+
+    [hidden] { display: none !important; }
+  </style>
+</head>
+
+<body class="bg-[#0b1120] text-slate-100 min-h-full font-sans antialiased flex flex-col selection:bg-blue-500 selection:text-white">
+
+  <!-- ==================== TOAST & ALERTS ==================== -->
+  <div id="toast" class="fixed top-5 right-5 z-50 flex items-center gap-3 px-4 py-3 rounded-xl bg-slate-800/95 backdrop-blur-md border border-slate-700 shadow-2xl text-sm transition-all duration-300 transform translate-y-[-20px] opacity-0 pointer-events-none">
+    <div id="toastIcon" class="text-emerald-400 text-base"><i class="fa-solid fa-circle-check"></i></div>
+    <span id="toastMsg" class="font-medium">Thông báo</span>
+  </div>
+
+  <div id="errorBanner" hidden class="fixed top-5 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 px-5 py-3 rounded-xl bg-red-950/90 border border-red-500/50 text-red-200 text-sm shadow-2xl backdrop-blur-md max-w-lg">
+    <i class="fa-solid fa-triangle-exclamation text-red-400"></i>
+    <span id="errorBannerText" class="flex-1 font-medium">Lỗi kết nối</span>
+    <button onclick="document.getElementById('errorBanner').hidden = true" class="text-red-400 hover:text-white"><i class="fa-solid fa-xmark"></i></button>
+  </div>
+
+  <!-- ==================== LOGIN SCREEN ==================== -->
+  <div id="loginPanel" class="min-h-screen flex items-center justify-center p-4 relative overflow-hidden bg-gradient-to-br from-slate-950 via-[#0b1120] to-slate-900">
+    <div class="absolute inset-0 bg-[radial-gradient(#3b82f6_1px,transparent_1px)] [background-size:24px_24px] opacity-10"></div>
+    
+    <div class="relative w-full max-w-md bg-slate-900/90 border border-slate-800/80 rounded-2xl p-8 shadow-2xl backdrop-blur-xl">
+      <div class="text-center mb-8">
+        <div class="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-500 text-white shadow-lg shadow-blue-500/25 mb-4">
+          <i class="fa-solid fa-square-parking text-3xl"></i>
+        </div>
+        <h1 class="text-2xl font-bold tracking-tight text-white">Smart Parking</h1>
+        <p class="text-sm text-slate-400 mt-1">Hệ thống điều khiển & giám sát bãi đỗ xe</p>
+      </div>
+
+      <form id="loginForm" class="space-y-5">
+        <div>
+          <label class="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">Tài khoản quản trị</label>
+          <div class="relative">
+            <span class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-500">
+              <i class="fa-solid fa-envelope"></i>
+            </span>
+            <input type="email" id="email" required autocomplete="username" placeholder="admin@smartparking.test"
+              class="w-full pl-10 pr-4 py-2.5 bg-slate-950/70 border border-slate-700/80 rounded-xl text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 transition-all text-sm">
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">Mật khẩu</label>
+          <div class="relative">
+            <span class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-500">
+              <i class="fa-solid fa-lock"></i>
+            </span>
+            <input type="password" id="password" required autocomplete="current-password" placeholder="••••••••"
+              class="w-full pl-10 pr-10 py-2.5 bg-slate-950/70 border border-slate-700/80 rounded-xl text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 transition-all text-sm">
+            <button type="button" id="togglePassword" class="absolute inset-y-0 right-0 pr-3.5 flex items-center text-slate-500 hover:text-slate-300">
+              <i class="fa-regular fa-eye"></i>
+            </button>
+          </div>
+        </div>
+
+        <div id="loginError" hidden class="p-3 bg-red-950/50 border border-red-800/60 rounded-xl text-red-300 text-xs flex items-center gap-2">
+          <i class="fa-solid fa-circle-exclamation text-red-400"></i>
+          <span id="loginErrorText"></span>
+        </div>
+
+        <button type="submit" id="loginBtn" class="w-full py-3 px-4 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-semibold rounded-xl shadow-lg shadow-blue-500/20 focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all duration-200 flex items-center justify-center gap-2 text-sm">
+          <span>Đăng nhập hệ thống</span>
+          <i class="fa-solid fa-arrow-right text-xs"></i>
+        </button>
+      </form>
+
+      <div class="mt-6 pt-5 border-t border-slate-800 text-center">
+        <p class="text-xs text-slate-500">Hệ thống đồng bộ Firebase Realtime & ESP32 IoT</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== MAIN APPLICATION ==================== -->
+  <div id="app" hidden class="flex-1 flex flex-col min-h-screen">
+    
+    <!-- Top Navbar -->
+    <header class="sticky top-0 z-40 bg-slate-900/80 backdrop-blur-md border-b border-slate-800/80">
+      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div class="flex items-center justify-between h-16 gap-4">
+          
+          <!-- Logo & Brand -->
+          <div class="flex items-center gap-3">
+            <div class="flex items-center justify-center w-10 h-10 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-500 text-white shadow-md shadow-blue-500/20">
+              <i class="fa-solid fa-square-parking text-xl"></i>
+            </div>
+            <div>
+              <div class="flex items-center gap-2">
+                <span class="font-bold text-base tracking-tight text-white">Smart Parking</span>
+                <span class="px-2 py-0.5 text-[10px] font-semibold tracking-wide uppercase bg-blue-500/10 text-blue-400 border border-blue-500/20 rounded-full">v2.5</span>
+              </div>
+              <div class="text-[11px] text-slate-400 hidden sm:block">IoT Parking Management System</div>
+            </div>
+          </div>
+
+          <!-- Live Status Bar -->
+          <div class="flex items-center gap-3 sm:gap-4">
+            
+            <!-- Connection Status -->
+            <div id="conn" class="flex items-center gap-2 px-3 py-1.5 rounded-full bg-slate-800/80 border border-slate-700/60 text-xs">
+              <span class="relative flex h-2.5 w-2.5">
+                <span id="connPing" class="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                <span id="connDot" class="relative inline-flex rounded-full h-2.5 w-2.5 bg-red-500"></span>
+              </span>
+              <span id="connText" class="text-slate-300 font-medium">Đang kết nối...</span>
+            </div>
+
+            <!-- Test Mode Switch -->
+            <label id="testWrap" class="cursor-pointer flex items-center gap-2 px-3 py-1.5 rounded-full bg-slate-800/80 border border-slate-700/60 text-xs text-slate-300 hover:bg-slate-800 select-none transition">
+              <input type="checkbox" id="testMode" class="sr-only peer">
+              <div class="w-7 h-4 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-amber-500 relative"></div>
+              <span class="font-medium text-slate-300">Chế độ thử</span>
+            </label>
+
+            <!-- User Menu & Logout -->
+            <div class="flex items-center gap-2 pl-2 border-l border-slate-800">
+              <div class="hidden md:flex flex-col text-right">
+                <span id="userEmail" class="text-xs font-semibold text-slate-200"></span>
+                <span class="text-[10px] text-slate-400">Quản trị viên</span>
+              </div>
+              <button id="logoutBtn" title="Đăng xuất" class="p-2 rounded-xl text-slate-400 hover:text-red-400 hover:bg-slate-800/80 transition-colors">
+                <i class="fa-solid fa-arrow-right-from-bracket"></i>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Navigation Tabs -->
+        <nav class="flex space-x-1 overflow-x-auto py-2 -mb-px border-t border-slate-800/50" role="tablist">
+          <button type="button" class="tab-btn px-4 py-2 text-xs sm:text-sm font-medium rounded-lg text-slate-400 hover:text-slate-200 hover:bg-slate-800/50 transition flex items-center gap-2 whitespace-nowrap active" data-tab="overview">
+            <i class="fa-solid fa-chart-pie text-xs"></i>
+            <span>Tổng quan</span>
+          </button>
+          <button type="button" class="tab-btn px-4 py-2 text-xs sm:text-sm font-medium rounded-lg text-slate-400 hover:text-slate-200 hover:bg-slate-800/50 transition flex items-center gap-2 whitespace-nowrap" data-tab="residents">
+            <i class="fa-solid fa-id-card text-xs"></i>
+            <span>Cư dân</span>
+            <span id="badgeResCount" class="ml-1 px-1.5 py-0.2 text-[10px] bg-slate-800 text-slate-400 rounded-full">0</span>
+          </button>
+          <button type="button" class="tab-btn px-4 py-2 text-xs sm:text-sm font-medium rounded-lg text-slate-400 hover:text-slate-200 hover:bg-slate-800/50 transition flex items-center gap-2 whitespace-nowrap" data-tab="cards">
+            <i class="fa-solid fa-credit-card text-xs"></i>
+            <span>Thẻ khách</span>
+            <span id="badgeCardCount" class="ml-1 px-1.5 py-0.2 text-[10px] bg-slate-800 text-slate-400 rounded-full">0</span>
+          </button>
+          <button type="button" class="tab-btn px-4 py-2 text-xs sm:text-sm font-medium rounded-lg text-slate-400 hover:text-slate-200 hover:bg-slate-800/50 transition flex items-center gap-2 whitespace-nowrap" data-tab="history">
+            <i class="fa-solid fa-clock-rotate-left text-xs"></i>
+            <span>Lịch sử & Doanh thu</span>
+          </button>
+          <button type="button" class="tab-btn px-4 py-2 text-xs sm:text-sm font-medium rounded-lg text-slate-400 hover:text-slate-200 hover:bg-slate-800/50 transition flex items-center gap-2 whitespace-nowrap" data-tab="settings">
+            <i class="fa-solid fa-sliders text-xs"></i>
+            <span>Cấu hình bãi</span>
+          </button>
+        </nav>
+      </div>
+    </header>
+
+    <!-- Main Content Body -->
+    <main class="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 lg:p-8 space-y-6">
+
+      <!-- ==================== TAB: TỔNG QUAN ==================== -->
+      <div id="tab-overview" class="tabpanel space-y-6">
+
+        <!-- Trạng thái thiết bị (ESP32) -->
+        <div class="bg-slate-900/60 border border-slate-800 rounded-2xl p-4 sm:p-5 backdrop-blur-sm">
+          <div class="flex items-center justify-between mb-3">
+            <h3 class="text-sm font-semibold text-slate-200 flex items-center gap-2">
+              <i class="fa-solid fa-microchip text-sky-400"></i> Trạng thái thiết bị (ESP32)
+            </h3>
+            <span class="text-[11px] text-slate-500">Mỗi thiết bị báo về mỗi 15 giây</span>
+          </div>
+          <div id="deviceGrid" class="grid grid-cols-1 md:grid-cols-3 gap-3"></div>
+        </div>
+        
+        <!-- Live Stat Cards -->
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+          
+          <!-- Card 1: Ô trống khách -->
+          <div class="bg-slate-900/60 border border-slate-800 rounded-2xl p-4 sm:p-5 relative overflow-hidden backdrop-blur-sm">
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-semibold uppercase tracking-wider text-slate-400">Ô khách còn trống</span>
+              <div class="w-8 h-8 rounded-xl bg-emerald-500/10 text-emerald-400 flex items-center justify-center">
+                <i class="fa-solid fa-circle-check"></i>
+              </div>
+            </div>
+            <div class="mt-3 flex items-baseline gap-2">
+              <span id="freeNum" class="text-3xl sm:text-4xl font-extrabold text-emerald-400 tracking-tight">0</span>
+              <span class="text-sm font-medium text-slate-400">/ <span id="totalNum">0</span> ô</span>
+            </div>
+            <div class="mt-2 text-[11px] text-slate-400 flex items-center gap-1.5">
+              <i class="fa-solid fa-arrow-trend-up text-emerald-400"></i>
+              <span>Sẵn sàng tiếp nhận xe</span>
+            </div>
+          </div>
+
+          <!-- Card 2: Ô có xe -->
+          <div class="bg-slate-900/60 border border-slate-800 rounded-2xl p-4 sm:p-5 relative overflow-hidden backdrop-blur-sm">
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-semibold uppercase tracking-wider text-slate-400">Tổng ô có xe</span>
+              <div class="w-8 h-8 rounded-xl bg-rose-500/10 text-rose-400 flex items-center justify-center">
+                <i class="fa-solid fa-car-side"></i>
+              </div>
+            </div>
+            <div class="mt-3 flex items-baseline gap-2">
+              <span id="statBusy" class="text-3xl sm:text-4xl font-extrabold text-white tracking-tight">0</span>
+              <span class="text-sm font-medium text-slate-400">ô đang đỗ</span>
+            </div>
+            <div class="mt-2 text-[11px] text-slate-400 flex items-center gap-1.5">
+              <span class="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse"></span>
+              <span>Cảm biến hồng ngoại kích hoạt</span>
+            </div>
+          </div>
+
+          <!-- Card 3: Cư dân trong bãi -->
+          <div class="bg-slate-900/60 border border-slate-800 rounded-2xl p-4 sm:p-5 relative overflow-hidden backdrop-blur-sm">
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-semibold uppercase tracking-wider text-slate-400">Cư dân trong bãi</span>
+              <div class="w-8 h-8 rounded-xl bg-amber-500/10 text-amber-400 flex items-center justify-center">
+                <i class="fa-solid fa-house-user"></i>
+              </div>
+            </div>
+            <div class="mt-3 flex items-baseline gap-2">
+              <span id="statRes" class="text-3xl sm:text-4xl font-extrabold text-white tracking-tight">0</span>
+              <span class="text-sm font-medium text-slate-400">đang gửi</span>
+            </div>
+            <div class="mt-2 text-[11px] text-slate-400 flex items-center gap-1.5">
+              <i class="fa-solid fa-shield-halved text-amber-400"></i>
+              <span>Ô cố định theo căn hộ</span>
+            </div>
+          </div>
+
+          <!-- Card 4: Doanh thu hôm nay -->
+          <div class="bg-slate-900/60 border border-slate-800 rounded-2xl p-4 sm:p-5 relative overflow-hidden backdrop-blur-sm">
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-semibold uppercase tracking-wider text-slate-400">Doanh thu hôm nay</span>
+              <div class="w-8 h-8 rounded-xl bg-blue-500/10 text-blue-400 flex items-center justify-center">
+                <i class="fa-solid fa-wallet"></i>
+              </div>
+            </div>
+            <div class="mt-3">
+              <span id="statToday" class="text-2xl sm:text-3xl font-extrabold text-blue-400 tracking-tight">0 đ</span>
+            </div>
+            <div class="mt-2 text-[11px] text-slate-400 flex items-center gap-1.5">
+              <i class="fa-solid fa-coins text-blue-400"></i>
+              <span>Từ 00:00 hôm nay</span>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- SƠ ĐỒ BÃI ĐỖ XE TRỰC QUAN (PARKING LOT VISUAL MAP) -->
+        <div class="bg-slate-900/80 border border-slate-800 rounded-2xl p-5 sm:p-6 shadow-xl backdrop-blur-md">
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between pb-4 border-b border-slate-800 gap-3">
+            <div>
+              <div class="flex items-center gap-2">
+                <h2 class="text-lg font-bold text-white tracking-tight flex items-center gap-2">
+                  <i class="fa-solid fa-map-location-dot text-blue-400"></i>
+                  <span>Sơ đồ ô đỗ thời gian thực</span>
+                </h2>
+                <span class="flex h-2 w-2 relative">
+                  <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                  <span class="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                </span>
+              </div>
+              <p class="text-xs text-slate-400 mt-1">Cập nhật ngay tức thì từ cảm biến ESP32</p>
+            </div>
+
+            <!-- Chú thích (Legend) -->
+            <div class="flex flex-wrap items-center gap-4 text-xs font-medium">
+              <div class="flex items-center gap-1.5">
+                <span class="w-3 h-3 rounded bg-emerald-500 shadow-sm shadow-emerald-500/50"></span>
+                <span class="text-slate-300">Trống (Sẵn sàng)</span>
+              </div>
+              <div class="flex items-center gap-1.5">
+                <span class="w-3 h-3 rounded bg-rose-500 shadow-sm shadow-rose-500/50"></span>
+                <span class="text-slate-300">Có xe đỗ</span>
+              </div>
+              <div class="flex items-center gap-1.5">
+                <span class="w-3 h-3 rounded bg-amber-500 shadow-sm shadow-amber-500/50"></span>
+                <span class="text-slate-300">Giữ chỗ cư dân</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Lưới các ô đỗ xe -->
+          <div id="bays" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3 sm:gap-4 mt-6">
+            <!-- Render động bằng JS -->
+          </div>
+
+          <!-- Gợi ý chế độ thử -->
+          <div id="bayHint" class="mt-4 pt-3 border-t border-slate-800/60 flex items-center gap-2 text-xs text-slate-400">
+            <i class="fa-solid fa-lightbulb text-amber-400"></i>
+            <span>Mẹo: Bật <strong>"Chế độ thử"</strong> ở góc trên thanh điều hướng để click đổi trực tiếp trạng thái ô khi đang test không có phần cứng ESP32.</span>
+          </div>
+        </div>
+
+        <!-- DANH SÁCH KHÁCH ĐANG ĐỖ (ACTIVE SESSIONS) -->
+        <div class="bg-slate-900/80 border border-slate-800 rounded-2xl p-5 sm:p-6 shadow-xl backdrop-blur-md">
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between pb-4 border-b border-slate-800 gap-2">
+            <div>
+              <h2 class="text-lg font-bold text-white tracking-tight flex items-center gap-2">
+                <i class="fa-solid fa-car-tunnel text-indigo-400"></i>
+                <span>Khách đang gửi xe trong bãi</span>
+              </h2>
+              <p class="text-xs text-slate-400 mt-1">Các phiên đang hoạt động với thẻ RFID tạm thời</p>
+            </div>
+            <div class="text-xs text-slate-400 bg-slate-800/80 px-3 py-1.5 rounded-lg border border-slate-700/60 flex items-center gap-2">
+              <i class="fa-solid fa-bolt text-amber-400"></i>
+              <span>Phí tự động tính theo thời gian thực</span>
+            </div>
+          </div>
+
+          <div class="overflow-x-auto mt-4">
+            <table class="w-full text-left text-sm">
+              <thead class="text-xs uppercase tracking-wider text-slate-400 bg-slate-950/40 border-b border-slate-800">
+                <tr>
+                  <th class="py-3 px-4">UID Thẻ</th>
+                  <th class="py-3 px-4">Giờ vào</th>
+                  <th class="py-3 px-4">Thời gian đỗ</th>
+                  <th class="py-3 px-4 text-right">Tạm tính</th>
+                  <th class="py-3 px-4 text-center">Thao tác admin</th>
+                </tr>
+              </thead>
+              <tbody id="sessionsBody" class="divide-y divide-slate-800/60 text-slate-300">
+                <!-- Render động bằng JS -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- ==================== TAB: CƯ DÂN ==================== -->
+      <div id="tab-residents" class="tabpanel space-y-6" hidden>
+        
+        <!-- Form thêm / sửa cư dân -->
+        <div class="bg-slate-900/80 border border-slate-800 rounded-2xl p-5 sm:p-6 shadow-xl backdrop-blur-md">
+          <div class="flex items-center justify-between pb-4 border-b border-slate-800">
+            <div>
+              <h2 id="residentFormTitle" class="text-lg font-bold text-white tracking-tight flex items-center gap-2">
+                <i class="fa-solid fa-user-plus text-blue-400"></i>
+                <span>Thêm cư dân mới</span>
+              </h2>
+              <p class="text-xs text-slate-400 mt-1">Gán thẻ định danh NFC/RFID và phân bổ vị trí đỗ cố định</p>
+            </div>
+          </div>
+
+          <form id="residentForm" autocomplete="off" class="mt-5 space-y-4">
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+              <div>
+                <label class="block text-xs font-semibold text-slate-300 mb-1.5">Mã / UID thẻ NFC <span class="text-red-400">*</span></label>
+                <div class="relative">
+                  <input id="rId" required maxlength="24" placeholder="1D4286DE1D1080"
+                    class="w-full px-3 py-2 bg-slate-950/80 border border-slate-700/80 rounded-xl text-slate-100 placeholder-slate-500 font-mono text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/50 uppercase">
+                </div>
+              </div>
+
+              <div>
+                <label class="block text-xs font-semibold text-slate-300 mb-1.5">Họ và tên <span class="text-red-400">*</span></label>
+                <input id="rName" required maxlength="60" placeholder="Nguyễn Văn A"
+                  class="w-full px-3 py-2 bg-slate-950/80 border border-slate-700/80 rounded-xl text-slate-100 placeholder-slate-500 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/50">
+              </div>
+
+              <div>
+                <label class="block text-xs font-semibold text-slate-300 mb-1.5">Biển số xe <span class="text-red-400">*</span></label>
+                <input id="rPlate" required maxlength="20" placeholder="60A-123.45"
+                  class="w-full px-3 py-2 bg-slate-950/80 border border-slate-700/80 rounded-xl text-slate-100 placeholder-slate-500 font-mono text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/50 uppercase">
+              </div>
+
+              <div>
+                <label class="block text-xs font-semibold text-slate-300 mb-1.5">Căn hộ <span class="text-red-400">*</span></label>
+                <input id="rApt" required maxlength="20" placeholder="P.1204 - Tòa A"
+                  class="w-full px-3 py-2 bg-slate-950/80 border border-slate-700/80 rounded-xl text-slate-100 placeholder-slate-500 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/50">
+              </div>
+
+              <div>
+                <label class="block text-xs font-semibold text-slate-300 mb-1.5">Ô đỗ xe riêng <span class="text-red-400">*</span></label>
+                <select id="rSlot" required
+                  class="w-full px-3 py-2 bg-slate-950/80 border border-slate-700/80 rounded-xl text-slate-100 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/50">
+                </select>
+              </div>
+            </div>
+
+            <div class="flex items-center justify-end gap-3 pt-3 border-t border-slate-800">
+              <button type="button" id="rCancel" hidden class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold rounded-xl transition">Hủy bỏ</button>
+              <button type="submit" id="rSubmit" class="px-5 py-2 bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold rounded-xl shadow-lg shadow-blue-500/20 transition flex items-center gap-1.5">
+                <i class="fa-solid fa-plus"></i>
+                <span>Thêm cư dân</span>
+              </button>
+            </div>
+          </form>
+        </div>
+
+        <!-- Bảng danh sách cư dân -->
+        <div class="bg-slate-900/80 border border-slate-800 rounded-2xl p-5 sm:p-6 shadow-xl backdrop-blur-md">
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between pb-4 border-b border-slate-800 gap-3">
+            <div>
+              <h2 class="text-lg font-bold text-white tracking-tight flex items-center gap-2">
+                <i class="fa-solid fa-users text-blue-400"></i>
+                <span>Danh sách cư dân đã đăng ký</span>
+              </h2>
+              <p class="text-xs text-slate-400 mt-1">Cư dân được giữ chỗ tự động và miễn phí gửi xe</p>
+            </div>
+            <div class="w-full sm:w-64">
+              <div class="relative">
+                <span class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-500 text-xs">
+                  <i class="fa-solid fa-magnifying-glass"></i>
+                </span>
+                <input id="resSearchInput" placeholder="Tìm theo tên, biển số, căn hộ..."
+                  class="w-full pl-9 pr-3 py-1.5 bg-slate-950/80 border border-slate-700/80 rounded-xl text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-blue-500">
+              </div>
+            </div>
+          </div>
+
+          <div class="overflow-x-auto mt-4">
+            <table class="w-full text-left text-sm">
+              <thead class="text-xs uppercase tracking-wider text-slate-400 bg-slate-950/40 border-b border-slate-800">
+                <tr>
+                  <th class="py-3 px-4">Mã UID</th>
+                  <th class="py-3 px-4">Họ và tên</th>
+                  <th class="py-3 px-4">Biển số</th>
+                  <th class="py-3 px-4">Căn hộ</th>
+                  <th class="py-3 px-4">Ô riêng</th>
+                  <th class="py-3 px-4">Trạng thái xe</th>
+                  <th class="py-3 px-4 text-center">Thao tác</th>
+                </tr>
+              </thead>
+              <tbody id="residentsBody" class="divide-y divide-slate-800/60 text-slate-300">
+                <!-- Render bằng JS -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- ==================== TAB: THẺ KHÁCH ==================== -->
+      <div id="tab-cards" class="tabpanel space-y-6" hidden>
+        
+        <!-- Form đăng ký thẻ khách -->
+        <div class="bg-slate-900/80 border border-slate-800 rounded-2xl p-5 sm:p-6 shadow-xl backdrop-blur-md">
+          <div class="flex items-center justify-between pb-4 border-b border-slate-800">
+            <div>
+              <h2 class="text-lg font-bold text-white tracking-tight flex items-center gap-2">
+                <i class="fa-solid fa-credit-card text-emerald-400"></i>
+                <span>Đăng ký thẻ khách vãng lai</span>
+              </h2>
+              <p class="text-xs text-slate-400 mt-1">Đọc UID từ đầu đọc RFID RC522 để kích hoạt quyền vào bãi</p>
+            </div>
+          </div>
+
+          <form id="cardForm" autocomplete="off" class="mt-5 space-y-4">
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              <div>
+                <label class="block text-xs font-semibold text-slate-300 mb-1.5">UID Thẻ (Hex không dấu cách) <span class="text-red-400">*</span></label>
+                <input id="cId" required maxlength="20" placeholder="04A1B2C3"
+                  class="w-full px-3 py-2 bg-slate-950/80 border border-slate-700/80 rounded-xl text-slate-100 placeholder-slate-500 font-mono text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/50 uppercase">
+              </div>
+
+              <div>
+                <label class="block text-xs font-semibold text-slate-300 mb-1.5">Tên gợi nhớ <span class="text-red-400">*</span></label>
+                <input id="cName" required maxlength="40" placeholder="Thẻ khách số 01"
+                  class="w-full px-3 py-2 bg-slate-950/80 border border-slate-700/80 rounded-xl text-slate-100 placeholder-slate-500 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/50">
+              </div>
+
+              <div class="flex items-end">
+                <button type="submit" class="w-full py-2.5 px-4 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold rounded-xl shadow-lg shadow-emerald-500/20 transition flex items-center justify-center gap-1.5">
+                  <i class="fa-solid fa-plus"></i>
+                  <span>Thêm thẻ vào hệ thống</span>
+                </button>
+              </div>
+            </div>
+          </form>
+        </div>
+
+        <!-- Bảng danh sách thẻ -->
+        <div class="bg-slate-900/80 border border-slate-800 rounded-2xl p-5 sm:p-6 shadow-xl backdrop-blur-md">
+          <div class="flex items-center justify-between pb-4 border-b border-slate-800">
+            <div>
+              <h2 class="text-lg font-bold text-white tracking-tight flex items-center gap-2">
+                <i class="fa-solid fa-layer-group text-emerald-400"></i>
+                <span>Danh mục thẻ trong kho</span>
+              </h2>
+              <p class="text-xs text-slate-400 mt-1">Quản lý đóng/mở khóa và mô phỏng quẹt thẻ</p>
+            </div>
+          </div>
+
+          <div class="overflow-x-auto mt-4">
+            <table class="w-full text-left text-sm">
+              <thead class="text-xs uppercase tracking-wider text-slate-400 bg-slate-950/40 border-b border-slate-800">
+                <tr>
+                  <th class="py-3 px-4">UID Thẻ</th>
+                  <th class="py-3 px-4">Tên thẻ</th>
+                  <th class="py-3 px-4">Trạng thái thẻ</th>
+                  <th class="py-3 px-4 text-center">Thao tác</th>
+                </tr>
+              </thead>
+              <tbody id="cardsBody" class="divide-y divide-slate-800/60 text-slate-300">
+                <!-- Render bằng JS -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- ==================== TAB: LỊCH SỬ & DOANH THU ==================== -->
+      <div id="tab-history" class="tabpanel space-y-6" hidden>
+        
+        <!-- Bộ lọc & Thống kê doanh thu -->
+        <div class="bg-slate-900/80 border border-slate-800 rounded-2xl p-5 sm:p-6 shadow-xl backdrop-blur-md space-y-5">
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between pb-4 border-b border-slate-800 gap-3">
+            <div>
+              <h2 class="text-lg font-bold text-white tracking-tight flex items-center gap-2">
+                <i class="fa-solid fa-chart-line text-blue-400"></i>
+                <span>Thống kê doanh thu & Bộ lọc</span>
+              </h2>
+              <p class="text-xs text-slate-400 mt-1">Xem chi tiết doanh thu theo khoảng thời gian và đối tượng</p>
+            </div>
+
+            <button type="button" id="hExport" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-xl text-xs font-semibold transition flex items-center gap-2">
+              <i class="fa-solid fa-file-csv text-emerald-400"></i>
+              <span>Xuất báo cáo CSV</span>
+            </button>
+          </div>
+
+          <!-- Bộ lọc controls -->
+          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+            <div>
+              <label class="block text-xs font-semibold text-slate-400 mb-1">Khoảng thời gian</label>
+              <select id="hRange" class="w-full px-3 py-2 bg-slate-950/80 border border-slate-700/80 rounded-xl text-slate-100 text-xs focus:ring-1 focus:ring-blue-500">
+                <option value="today">Hôm nay</option>
+                <option value="7" selected>7 ngày gần nhất</option>
+                <option value="30">30 ngày gần nhất</option>
+                <option value="all">Tất cả thời gian</option>
+              </select>
+            </div>
+
+            <div>
+              <label class="block text-xs font-semibold text-slate-400 mb-1">Hướng di chuyển</label>
+              <select id="hType" class="w-full px-3 py-2 bg-slate-950/80 border border-slate-700/80 rounded-xl text-slate-100 text-xs focus:ring-1 focus:ring-blue-500">
+                <option value="">Tất cả</option>
+                <option value="vao">Vào bãi</option>
+                <option value="ra">Ra bãi</option>
+                <option value="tu_choi">Bị từ chối</option>
+              </select>
+            </div>
+
+            <div>
+              <label class="block text-xs font-semibold text-slate-400 mb-1">Đối tượng</label>
+              <select id="hWho" class="w-full px-3 py-2 bg-slate-950/80 border border-slate-700/80 rounded-xl text-slate-100 text-xs focus:ring-1 focus:ring-blue-500">
+                <option value="">Tất cả đối tượng</option>
+                <option value="cu_dan">Cư dân</option>
+                <option value="khach">Khách vãng lai</option>
+              </select>
+            </div>
+
+            <div>
+              <label class="block text-xs font-semibold text-slate-400 mb-1">Tìm kiếm thẻ / mã</label>
+              <input id="hSearch" placeholder="Nhập UID hoặc mã cư dân..."
+                class="w-full px-3 py-2 bg-slate-950/80 border border-slate-700/80 rounded-xl text-slate-100 placeholder-slate-500 text-xs focus:ring-1 focus:ring-blue-500 uppercase">
+            </div>
+          </div>
+
+          <!-- 5 Thẻ chỉ số tổng hợp -->
+          <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 pt-3 border-t border-slate-800">
+            <div class="p-3.5 bg-slate-950/40 border border-slate-800/80 rounded-xl">
+              <span class="text-[11px] font-medium text-slate-400 block">Tổng thu (Phí + Phạt)</span>
+              <span id="sumTotal" class="text-xl font-bold text-emerald-400 mt-1 block">0 đ</span>
+            </div>
+            <div class="p-3.5 bg-slate-950/40 border border-slate-800/80 rounded-xl">
+              <span class="text-[11px] font-medium text-slate-400 block">Phí gửi xe</span>
+              <span id="sumFee" class="text-xl font-bold text-blue-400 mt-1 block">0 đ</span>
+            </div>
+            <div class="p-3.5 bg-slate-950/40 border border-slate-800/80 rounded-xl">
+              <span class="text-[11px] font-medium text-slate-400 block">Tiền phạt mất thẻ</span>
+              <span id="sumPenalty" class="text-xl font-bold text-rose-400 mt-1 block">0 đ</span>
+            </div>
+            <div class="p-3.5 bg-slate-950/40 border border-slate-800/80 rounded-xl">
+              <span class="text-[11px] font-medium text-slate-400 block">Lượt khách ra</span>
+              <span id="sumGuests" class="text-xl font-bold text-white mt-1 block">0</span>
+            </div>
+            <div class="p-3.5 bg-slate-950/40 border border-slate-800/80 rounded-xl">
+              <span class="text-[11px] font-medium text-slate-400 block">Lượt bị từ chối</span>
+              <span id="sumReject" class="text-xl font-bold text-amber-400 mt-1 block">0</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Biểu đồ doanh thu theo ngày -->
+        <div class="bg-slate-900/80 border border-slate-800 rounded-2xl p-5 sm:p-6 shadow-xl backdrop-blur-md">
+          <h2 class="text-lg font-bold text-white tracking-tight pb-3 border-b border-slate-800 flex items-center gap-2">
+            <i class="fa-solid fa-calendar-days text-indigo-400"></i>
+            <span>Doanh thu theo ngày</span>
+          </h2>
+
+          <div class="overflow-x-auto mt-4">
+            <table class="w-full text-left text-sm">
+              <thead class="text-xs uppercase tracking-wider text-slate-400 bg-slate-950/40 border-b border-slate-800">
+                <tr>
+                  <th class="py-3 px-4">Ngày</th>
+                  <th class="py-3 px-4 text-right">Lượt khách</th>
+                  <th class="py-3 px-4 text-right">Tiền phí</th>
+                  <th class="py-3 px-4 text-right">Tiền phạt</th>
+                  <th class="py-3 px-4 text-right">Tổng cộng</th>
+                  <th class="py-3 px-4 w-1/3">Tỷ trọng</th>
+                </tr>
+              </thead>
+              <tbody id="dayBody" class="divide-y divide-slate-800/60 text-slate-300">
+                <!-- Render bằng JS -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Chi tiết lịch sử ra vào -->
+        <div class="bg-slate-900/80 border border-slate-800 rounded-2xl p-5 sm:p-6 shadow-xl backdrop-blur-md">
+          <div class="flex items-center justify-between pb-3 border-b border-slate-800">
+            <h2 class="text-lg font-bold text-white tracking-tight flex items-center gap-2">
+              <i class="fa-solid fa-list-check text-blue-400"></i>
+              <span>Nhật ký ra vào chi tiết</span>
+            </h2>
+            <span id="historyNote" class="text-xs text-slate-400"></span>
+          </div>
+
+          <div class="overflow-x-auto mt-4">
+            <table class="w-full text-left text-sm">
+              <thead class="text-xs uppercase tracking-wider text-slate-400 bg-slate-950/40 border-b border-slate-800">
+                <tr>
+                  <th class="py-3 px-4">Thời gian</th>
+                  <th class="py-3 px-4">Đối tượng</th>
+                  <th class="py-3 px-4">Mã / Thẻ</th>
+                  <th class="py-3 px-4">Sự kiện</th>
+                  <th class="py-3 px-4 text-right">Đỗ (phút)</th>
+                  <th class="py-3 px-4 text-right">Phí gửi</th>
+                  <th class="py-3 px-4 text-right">Tiền phạt</th>
+                  <th class="py-3 px-4">Ghi chú</th>
+                </tr>
+              </thead>
+              <tbody id="historyBody" class="divide-y divide-slate-800/60 text-slate-300">
+                <!-- Render bằng JS -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- ==================== TAB: CẤU HÌNH ==================== -->
+      <div id="tab-settings" class="tabpanel space-y-6" hidden>
+        
+        <!-- Cấu hình biểu phí & giới hạn -->
+        <div class="bg-slate-900/80 border border-slate-800 rounded-2xl p-5 sm:p-6 shadow-xl backdrop-blur-md">
+          <div class="pb-4 border-b border-slate-800">
+            <h2 class="text-lg font-bold text-white tracking-tight flex items-center gap-2">
+              <i class="fa-solid fa-gears text-blue-400"></i>
+              <span>Cấu hình thông số bãi xe</span>
+            </h2>
+            <p class="text-xs text-slate-400 mt-1">Các mạch ESP32 tự động nhận thông số mới từ Firebase trong vòng 60 giây</p>
+          </div>
+
+          <form id="settingsForm" class="mt-5 space-y-5">
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+              
+              <div class="bg-slate-950/40 border border-slate-800 p-4 rounded-xl">
+                <label class="block text-xs font-semibold text-slate-300 mb-1">Đơn giá mỗi block (VNĐ) <span class="text-red-400">*</span></label>
+                <div class="relative mt-2">
+                  <input id="sPrice" type="number" min="0" step="500" required
+                    class="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-slate-100 font-mono text-sm focus:ring-1 focus:ring-blue-500">
+                  <span class="absolute right-3 top-2.5 text-xs text-slate-500 font-medium">VNĐ</span>
+                </div>
+                <p class="text-[11px] text-slate-500 mt-2">Mức phí áp dụng cho mỗi đơn vị thời gian</p>
+              </div>
+
+              <div class="bg-slate-950/40 border border-slate-800 p-4 rounded-xl">
+                <label class="block text-xs font-semibold text-slate-300 mb-1">Block tính phí (Phút) <span class="text-red-400">*</span></label>
+                <div class="relative mt-2">
+                  <input id="sBlock" type="number" min="1" step="1" required
+                    class="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-slate-100 font-mono text-sm focus:ring-1 focus:ring-blue-500">
+                  <span class="absolute right-3 top-2.5 text-xs text-slate-500 font-medium">phút</span>
+                </div>
+                <p class="text-[11px] text-slate-500 mt-2">Quy đổi block làm tròn lên (Mặc định 60 phút = 1 giờ)</p>
+              </div>
+
+              <div class="bg-slate-950/40 border border-slate-800 p-4 rounded-xl">
+                <label class="block text-xs font-semibold text-slate-300 mb-1">Thời gian miễn phí ban đầu <span class="text-red-400">*</span></label>
+                <div class="relative mt-2">
+                  <input id="sFree" type="number" min="0" step="1" required
+                    class="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-slate-100 font-mono text-sm focus:ring-1 focus:ring-blue-500">
+                  <span class="absolute right-3 top-2.5 text-xs text-slate-500 font-medium">phút</span>
+                </div>
+                <p class="text-[11px] text-slate-500 mt-2">Nếu gửi dưới số phút này sẽ được tính phí 0đ</p>
+              </div>
+
+              <div class="bg-slate-950/40 border border-slate-800 p-4 rounded-xl">
+                <label class="block text-xs font-semibold text-slate-300 mb-1">Phí phạt mất thẻ (VNĐ) <span class="text-red-400">*</span></label>
+                <div class="relative mt-2">
+                  <input id="sPenalty" type="number" min="0" step="1000" required
+                    class="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-slate-100 font-mono text-sm focus:ring-1 focus:ring-blue-500">
+                  <span class="absolute right-3 top-2.5 text-xs text-slate-500 font-medium">VNĐ</span>
+                </div>
+                <p class="text-[11px] text-slate-500 mt-2">Áp dụng cộng thêm khi khách làm mất thẻ RFID</p>
+              </div>
+
+              <div class="bg-slate-950/40 border border-slate-800 p-4 rounded-xl">
+                <label class="block text-xs font-semibold text-slate-300 mb-1">Số lượng khách tối đa cùng lúc <span class="text-red-400">*</span></label>
+                <div class="relative mt-2">
+                  <input id="sMax" type="number" min="0" step="1" required
+                    class="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-slate-100 font-mono text-sm focus:ring-1 focus:ring-blue-500">
+                  <span class="absolute right-3 top-2.5 text-xs text-slate-500 font-medium">xe</span>
+                </div>
+                <p class="text-[11px] text-slate-500 mt-2">Khi đạt số lượng này, barrier cổng vào tự động từ chối</p>
+              </div>
+
+            </div>
+
+            <div class="flex justify-end pt-3 border-t border-slate-800">
+              <button type="submit" class="px-6 py-2.5 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold rounded-xl shadow-lg shadow-blue-500/20 transition flex items-center gap-2">
+                <i class="fa-solid fa-floppy-disk"></i>
+                <span>Lưu thông số cấu hình</span>
+              </button>
+            </div>
+          </form>
+        </div>
+
+        <!-- Sơ đồ cấu hình ô đỗ -->
+        <div class="bg-slate-900/80 border border-slate-800 rounded-2xl p-5 sm:p-6 shadow-xl backdrop-blur-md">
+          <div class="pb-3 border-b border-slate-800">
+            <h2 class="text-lg font-bold text-white tracking-tight flex items-center gap-2">
+              <i class="fa-solid fa-table-cells-large text-emerald-400"></i>
+              <span>Cấu trúc phân bổ ô bãi đỗ</span>
+            </h2>
+            <p class="text-xs text-slate-400 mt-1">Danh sách các ô được định nghĩa tại nút <code>config/o</code> trên Firebase</p>
+          </div>
+
+          <div class="overflow-x-auto mt-4">
+            <table class="w-full text-left text-sm">
+              <thead class="text-xs uppercase tracking-wider text-slate-400 bg-slate-950/40 border-b border-slate-800">
+                <tr>
+                  <th class="py-3 px-4">Tên Ô</th>
+                  <th class="py-3 px-4">Phân loại</th>
+                  <th class="py-3 px-4">Chủ sở hữu được gán</th>
+                </tr>
+              </thead>
+              <tbody id="layoutBody" class="divide-y divide-slate-800/60 text-slate-300">
+                <!-- Render bằng JS -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+      </div>
+
+    </main>
+
+    <!-- Footer -->
+    <footer class="border-t border-slate-800/80 bg-slate-950/50 py-4 text-center text-xs text-slate-500">
+      <div class="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-2">
+        <span>© 2026 Smart Parking System • ESP32 & Firebase Realtime Database</span>
+        <span class="flex items-center gap-2">
+          <i class="fa-solid fa-microchip text-blue-500"></i>
+          <span>Firmware Gate & Lot Active</span>
+        </span>
+      </div>
+    </footer>
+  </div>
+
+  <!-- ==================== MODAL: XÁC NHẬN ĐÓNG PHIÊN / THU PHÍ ==================== -->
+  <div id="checkoutModal" hidden class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm">
+    <div class="w-full max-w-md bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-2xl relative text-left">
+      
+      <div class="flex items-center justify-between pb-3 border-b border-slate-800">
+        <h3 id="modalTitle" class="text-base font-bold text-white flex items-center gap-2">
+          <i class="fa-solid fa-receipt text-blue-400"></i>
+          <span>Xác nhận thu phí đỗ xe</span>
+        </h3>
+        <button onclick="closeCheckoutModal()" class="text-slate-400 hover:text-white">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+
+      <div class="mt-4 space-y-3 text-sm">
+        <div class="flex justify-between py-1 border-b border-slate-800/60 text-xs">
+          <span class="text-slate-400">Mã thẻ khách:</span>
+          <span id="mCardId" class="font-mono font-bold text-white"></span>
+        </div>
+        <div class="flex justify-between py-1 border-b border-slate-800/60 text-xs">
+          <span class="text-slate-400">Thời gian vào:</span>
+          <span id="mEntryTime" class="text-slate-200"></span>
+        </div>
+        <div class="flex justify-between py-1 border-b border-slate-800/60 text-xs">
+          <span class="text-slate-400">Tổng thời gian đỗ:</span>
+          <span id="mDuration" class="font-semibold text-slate-200"></span>
+        </div>
+        <div class="flex justify-between py-1 border-b border-slate-800/60 text-xs">
+          <span class="text-slate-400">Tiền phí đỗ xe:</span>
+          <span id="mFee" class="font-semibold text-blue-400"></span>
+        </div>
+        <div id="mPenaltyRow" hidden class="flex justify-between py-1 border-b border-slate-800/60 text-xs text-rose-400">
+          <span>Phí phạt mất thẻ:</span>
+          <span id="mPenalty" class="font-semibold"></span>
+        </div>
+        <div class="flex justify-between pt-2 text-base font-bold">
+          <span class="text-white">TỔNG THU:</span>
+          <span id="mTotal" class="text-emerald-400 text-lg"></span>
+        </div>
+
+        <!-- Khung quét mã VietQR giả lập -->
+        <div id="mQrContainer" class="p-3 bg-white rounded-xl text-center shadow-lg border border-slate-200 text-slate-800">
+          <div class="text-[11px] font-bold text-slate-700 uppercase tracking-wide mb-1 flex items-center justify-center gap-1.5">
+            <i class="fa-solid fa-qrcode text-blue-600 text-sm"></i>
+            <span>Mã VietQR Thanh Toán Tự Động</span>
+          </div>
+          <div class="flex items-center justify-center py-1">
+            <img id="mQrImg" src="" alt="Mã VietQR" class="w-44 h-44 object-contain rounded-lg border border-slate-200 bg-white shadow-sm">
+          </div>
+          <div class="mt-2 text-[11px] text-slate-600 space-y-0.5">
+            <div>Ngân hàng: <span class="font-bold text-slate-800">MB Bank (Quân Đội)</span></div>
+            <div>Số tài khoản: <span class="font-mono font-bold text-blue-600">0987654321</span> (Demo)</div>
+            <div>Nội dung: <span id="mQrMemo" class="font-mono font-bold text-slate-800">PARK...</span></div>
+          </div>
+        </div>
+
+        <div id="mLostNotice" hidden class="p-2.5 rounded-xl bg-rose-950/40 border border-rose-800/50 text-rose-300 text-xs flex items-center gap-2">
+          <i class="fa-solid fa-triangle-exclamation text-rose-400"></i>
+          <span>Lưu ý: Thẻ sẽ tự động bị khóa trong hệ thống sau khi hoàn tất.</span>
+        </div>
+      </div>
+
+      <div class="flex flex-col sm:flex-row items-center justify-end gap-2 mt-5 pt-3 border-t border-slate-800">
+        <button type="button" onclick="closeCheckoutModal()" class="w-full sm:w-auto px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold rounded-xl transition">
+          Đóng
+        </button>
+        <button type="button" id="mQrPayBtn" class="w-full sm:w-auto px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-xl shadow-lg shadow-emerald-500/20 transition flex items-center justify-center gap-1.5">
+          <i class="fa-solid fa-circle-check"></i>
+          <span>Xác nhận đã quét QR (Mở Barrier)</span>
+        </button>
+        <button type="button" id="mConfirmBtn" class="w-full sm:w-auto px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold rounded-xl shadow-lg shadow-blue-500/20 transition">
+          Thu tiền mặt & Đóng
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== FIREBASE SDKs (Compat 10.12.2) ==================== -->
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+
+  <!-- ==================== APPLICATION SCRIPT ==================== -->
+  <script>
+    const firebaseConfig = {
+      apiKey: "AIzaSyAlDm_5d3a_JI1IzALkQTlzdu8fwcKNOV8",
+      authDomain: "smart-parking-7512f.firebaseapp.com",
+      databaseURL: "https://smart-parking-7512f-default-rtdb.asia-southeast1.firebasedatabase.app",
+      projectId: "smart-parking-7512f",
+      storageBucket: "smart-parking-7512f.firebasestorage.app",
+      messagingSenderId: "566788257976",
+      appId: "1:566788257976:web:aa893580cb6cd0b6421c4d",
+      measurementId: "G-86FDNJVMN5"
+    };
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
+    const auth = firebase.auth();
+
+    // ============ Quản lý Trạng thái ============
+    const $ = (id) => document.getElementById(id);
+    const ID_RE = /^[A-Za-z0-9_-]{1,24}$/;
+
+    const state = { 
+      config: {}, 
+      residents: {}, 
+      slots: {}, 
+      cards: {}, 
+      sessions: {}, 
+      history: {}, 
+      devices: {}, 
+      testMode: false 
+    };
+
+    let activeModalAction = null;
+
+    // ============ Thông báo & Tiện ích ============
+    let toastTimer = null;
+    function toast(msg, type = "success") {
+      const t = $("toast");
+      const icon = $("toastIcon");
+      const text = $("toastMsg");
+      
+      text.textContent = msg;
+      if (type === "success") {
+        icon.innerHTML = '<i class="fa-solid fa-circle-check text-emerald-400"></i>';
+      } else if (type === "error") {
+        icon.innerHTML = '<i class="fa-solid fa-circle-exclamation text-rose-400"></i>';
+      } else {
+        icon.innerHTML = '<i class="fa-solid fa-circle-info text-blue-400"></i>';
+      }
+
+      t.classList.remove("opacity-0", "translate-y-[-20px]", "pointer-events-none");
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => {
+        t.classList.add("opacity-0", "translate-y-[-20px]", "pointer-events-none");
+      }, 3000);
+    }
+
+    let errTimer = null;
+    function showError(msg) {
+      const b = $("errorBanner");
+      $("errorBannerText").textContent = msg;
+      b.hidden = false;
+      clearTimeout(errTimer);
+      errTimer = setTimeout(() => { b.hidden = true; }, 10000);
+    }
+
+    function run(promise, okMsg) {
+      return promise
+        .then(() => { if (okMsg) toast(okMsg); return true; })
+        .catch((e) => { showError("Không ghi được dữ liệu: " + e.message); return false; });
+    }
+
+    const num = (v, d) => (typeof v === "number" && isFinite(v) ? v : d);
+    const cfg = (key, d) => num(state.config[key], d);
+    const fmtTime = (ms) => new Date(ms).toLocaleString("vi-VN", { hour: '2-digit', minute: '2-digit', second: '2-digit', day: '2-digit', month: '2-digit', year: 'numeric' });
+    const fmtMoney = (v) => (v || 0).toLocaleString("vi-VN") + " đ";
+    
+    function fmtDuration(ms) {
+      const totalMin = Math.max(0, Math.floor(ms / 60000));
+      const h = Math.floor(totalMin / 60);
+      const m = totalMin % 60;
+      return h > 0 ? `${h}h ${m}m` : `${m} phút`;
+    }
+
+    function dayKey(ms) {
+      const d = new Date(ms);
+      return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
+    }
+
+    function startOfDay(ms) {
+      const d = new Date(ms);
+      d.setHours(0, 0, 0, 0);
+      return d.getTime();
+    }
+
+    // Tính phí: miễn phí N phút đầu, sau đó tính theo block
+    function calcFee(minutes) {
+      if (minutes <= cfg("mienPhiPhut", 15)) return 0;
+      const block = Math.max(1, cfg("blockPhut", 60));
+      return Math.ceil(minutes / block) * cfg("donGiaMoiGio", 5000);
+    }
+
+    // ============ Sơ đồ ô đỗ ============
+    const layout = () => (state.config.o && typeof state.config.o === "object" ? state.config.o : {});
+    function slotKeys() {
+      const set = new Set([...Object.keys(layout()), ...Object.keys(state.slots)]);
+      return [...set].sort((a, b) => a.localeCompare(b, "vi", { numeric: true }));
+    }
+    const slotType = (k) => (layout()[k] && layout()[k].loai === "cu_dan" ? "cu_dan" : "khach");
+    const residentSlotIds = () => slotKeys().filter((k) => slotType(k) === "cu_dan");
+    const guestSlotIds = () => slotKeys().filter((k) => slotType(k) === "khach");
+    
+    function slotOwner(id) {
+      const o = layout();
+      return Object.keys(o).find((k) => o[k] && o[k].chuXe === id) || "";
+    }
+
+    const STATE_TEXT = { trong: "Trống", co_xe: "Có xe", giu_cho: "Giữ chỗ" };
+    const VALID_STATES = { cu_dan: ["giu_cho", "co_xe"], khach: ["trong", "co_xe"] };
+
+    // ============ Render: Tổng quan ============
+    function renderOverview() {
+      const wrap = $("bays");
+      wrap.innerHTML = "";
+      const keys = slotKeys();
+      let busy = 0, freeGuest = 0;
+
+      keys.forEach((k) => {
+        const type = slotType(k);
+        let st = state.slots[k];
+        if (!STATE_TEXT[st]) st = VALID_STATES[type][0];
+        if (st === "co_xe") busy++;
+        if (type === "khach" && st === "trong") freeGuest++;
+
+        const ownerId = layout()[k] && layout()[k].chuXe;
+        const ownerName = ownerId && state.residents[ownerId] ? state.residents[ownerId].ten : ownerId;
+
+        // Visual styles depending on status
+        let statusBg = "bg-slate-900/90 border-slate-800";
+        let glowClass = "";
+        let badgeColor = "bg-slate-800 text-slate-300";
+        let iconColor = "text-slate-600";
+        let carIcon = "fa-car";
+
+        if (st === "trong") {
+          statusBg = "bg-emerald-950/20 border-emerald-500/30";
+          glowClass = "glow-free";
+          badgeColor = "bg-emerald-500/10 text-emerald-400 border border-emerald-500/30";
+          iconColor = "text-emerald-500/40";
+        } else if (st === "co_xe") {
+          statusBg = "bg-rose-950/20 border-rose-500/40";
+          glowClass = "glow-busy";
+          badgeColor = "bg-rose-500/20 text-rose-400 border border-rose-500/40 font-bold";
+          iconColor = "text-rose-500";
+        } else if (st === "giu_cho") {
+          statusBg = "bg-amber-950/20 border-amber-500/30";
+          glowClass = "glow-held";
+          badgeColor = "bg-amber-500/10 text-amber-400 border border-amber-500/30";
+          iconColor = "text-amber-500/50";
+          carIcon = "fa-shield-halved";
+        }
+
+        const card = document.createElement("div");
+        card.className = `bay-card relative p-4 rounded-2xl border ${statusBg} ${glowClass} flex flex-col justify-between select-none ${state.testMode ? 'cursor-pointer hover:border-blue-400' : ''}`;
+        
+        card.innerHTML = `
+          <div class="flex items-center justify-between">
+            <span class="text-xl font-black tracking-tight text-white font-mono">${k}</span>
+            <span class="px-2 py-0.5 text-[10px] font-bold uppercase rounded-full ${badgeColor}">
+              ${STATE_TEXT[st]}
+            </span>
+          </div>
+
+          <div class="my-4 flex items-center justify-center">
+            <i class="fa-solid ${carIcon} text-4xl sm:text-5xl ${iconColor} transition-transform duration-300 ${st === 'co_xe' ? 'scale-110' : ''}"></i>
+          </div>
+
+          <div class="pt-2 border-t border-slate-800/80 text-[11px] truncate">
+            ${type === "cu_dan" 
+              ? `<span class="text-amber-400 font-semibold"><i class="fa-solid fa-user-lock text-[9px]"></i> Cư dân:</span> <span class="text-slate-300">${ownerName || 'Chưa gán'}</span>` 
+              : `<span class="text-blue-400 font-medium"><i class="fa-solid fa-ticket text-[9px]"></i> Ô khách</span>`}
+          </div>
+
+          ${state.testMode ? `<div class="absolute inset-0 bg-blue-500/5 hover:bg-blue-500/15 rounded-2xl border border-dashed border-blue-400/50 transition-colors flex items-center justify-center opacity-0 hover:opacity-100"><span class="text-[11px] font-bold text-blue-300 bg-slate-900/90 px-2 py-1 rounded-md shadow">Click đổi trạng thái</span></div>` : ''}
+        `;
+
+        card.addEventListener("click", () => {
+          if (!state.testMode) return;
+          const list = VALID_STATES[type];
+          const next = list[(list.indexOf(st) + 1) % list.length];
+          run(db.ref("slots/" + k).set(next), `Đã đổi ô ${k} sang "${STATE_TEXT[next]}"`);
+        });
+
+        wrap.appendChild(card);
+      });
+
+      $("freeNum").textContent = freeGuest;
+      $("totalNum").textContent = guestSlotIds().length;
+      $("statBusy").textContent = busy;
+
+      const residentIds = Object.keys(state.residents).filter((id) => state.residents[id]);
+      const insideCount = residentIds.filter((id) => {
+        const slot = slotOwner(id);
+        return state.residents[id].trongBai === true || (slot && state.slots[slot] === "co_xe");
+      }).length;
+
+      $("statRes").textContent = insideCount;
+      $("badgeResCount").textContent = residentIds.length;
+      $("badgeCardCount").textContent = Object.keys(state.cards).length;
+
+      $("bayHint").hidden = state.testMode;
+
+      renderSessions();
+      renderTodayRevenue();
+    }
+
+    function renderTodayRevenue() {
+      const start = startOfDay(Date.now());
+      let sum = 0;
+      Object.values(state.history).forEach((h) => {
+        if (h && h.loai === "ra" && h.doiTuong === "khach" && (h.gio || 0) >= start) {
+          sum += num(h.phi, 0) + num(h.phat, 0);
+        }
+      });
+      $("statToday").textContent = fmtMoney(sum);
+    }
+
+    let currentModalUid = null;
+    let lastAutoPromptUid = null;
+
+    function renderSessions() {
+      const body = $("sessionsBody");
+      body.innerHTML = "";
+
+      // Hết yêu cầu thanh toán (đã trả tiền, phiên đã đóng hoặc bị hủy) thì lần ra sau popup QR tự bật lại
+      if (lastAutoPromptUid) {
+        const ps = state.sessions[lastAutoPromptUid];
+        if (!ps || !ps.thanhToan || ps.thanhToan.trangThai !== "cho_thanh_toan") lastAutoPromptUid = null;
+      }
+      const ids = Object.keys(state.sessions).sort((a, b) => num(state.sessions[a].gioVao, 0) - num(state.sessions[b].gioVao, 0));
+      
+      if (!ids.length) {
+        body.innerHTML = `<tr><td colspan="5" class="py-6 text-center text-slate-500 italic"><i class="fa-solid fa-circle-check text-slate-600 mr-1.5"></i> Hiện không có xe khách nào đang đỗ trong bãi.</td></tr>`;
+        return;
+      }
+
+      const now = Date.now();
+      ids.forEach((uid) => {
+        const s = state.sessions[uid] || {};
+        const elapsed = now - num(s.gioVao, now);
+        const fee = calcFee(elapsed / 60000);
+        const isWaitingPay = s.thanhToan && s.thanhToan.trangThai === "cho_thanh_toan";
+
+        // Tự động bật Modal VietQR khi xe ra quẹt thẻ tại Cổng ra
+        if (isWaitingPay && lastAutoPromptUid !== uid && $("checkoutModal").hidden) {
+          lastAutoPromptUid = uid;
+          toast(`Thẻ ${uid} tại Cổng ra đang chờ thanh toán!`, "info");
+          setTimeout(() => openCheckoutModal(uid, false), 300);
+        }
+
+        const tr = document.createElement("tr");
+        tr.className = isWaitingPay ? "bg-amber-500/10 border-l-4 border-amber-500 transition-colors" : "hover:bg-slate-800/30 transition-colors";
+        tr.innerHTML = `
+          <td class="py-3 px-4 font-mono font-bold text-white flex items-center gap-2">
+            <span class="w-2 h-2 rounded-full ${isWaitingPay ? 'bg-amber-400 animate-ping' : 'bg-emerald-400'}"></span>
+            <span>${uid}</span>
+            ${isWaitingPay ? '<span class="ml-1.5 px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-amber-500/20 text-amber-400 border border-amber-500/40 animate-pulse">Chờ quét QR</span>' : ''}
+          </td>
+          <td class="py-3 px-4 text-slate-400 text-xs">${s.gioVao ? fmtTime(s.gioVao) : '--'}</td>
+          <td class="py-3 px-4 font-semibold text-slate-200 text-xs">${fmtDuration(elapsed)}</td>
+          <td class="py-3 px-4 text-right font-mono font-bold text-emerald-400">${fmtMoney(fee)}</td>
+          <td class="py-3 px-4 text-center">
+            <div class="flex items-center justify-center gap-2">
+              <button onclick="openCheckoutModal('${uid}', false)" class="px-2.5 py-1 ${isWaitingPay ? 'bg-emerald-600 hover:bg-emerald-500 text-white font-bold animate-pulse' : 'bg-blue-600/20 hover:bg-blue-600 text-blue-400 hover:text-white'} rounded-lg text-xs font-semibold border border-blue-500/30 transition flex items-center gap-1">
+                <i class="fa-solid fa-qrcode"></i> ${isWaitingPay ? 'Mở mã QR' : 'Thu phí'}
+              </button>
+              <button onclick="openCheckoutModal('${uid}', true)" class="px-2.5 py-1 bg-rose-600/20 hover:bg-rose-600 text-rose-400 hover:text-white rounded-lg text-xs font-semibold border border-rose-500/30 transition flex items-center gap-1">
+                <i class="fa-solid fa-triangle-exclamation"></i> Mất thẻ
+              </button>
+            </div>
+          </td>
+        `;
+        body.appendChild(tr);
+      });
+    }
+
+    // ============ Modal: Thu phí / Đóng phiên / VietQR ============
+    function openCheckoutModal(uid, lost) {
+      const s = state.sessions[uid];
+      if (!s) return;
+      currentModalUid = uid;
+
+      const now = Date.now();
+      const minutes = Math.max(0, (now - num(s.gioVao, now)) / 60000);
+      const phi = calcFee(minutes);
+      const phat = lost ? cfg("phiPhatMatThe", 100000) : 0;
+      const total = phi + phat;
+
+      $("mCardId").textContent = uid;
+      $("mEntryTime").textContent = s.gioVao ? fmtTime(s.gioVao) : '--';
+      $("mDuration").textContent = fmtDuration(now - num(s.gioVao, now));
+      $("mFee").textContent = fmtMoney(phi);
+      
+      const penaltyRow = $("mPenaltyRow");
+      const lostNotice = $("mLostNotice");
+      const qrBox = $("mQrContainer");
+      const qrBtn = $("mQrPayBtn");
+
+      if (lost) {
+        $("mPenalty").textContent = fmtMoney(phat);
+        penaltyRow.hidden = false;
+        lostNotice.hidden = false;
+        qrBox.hidden = true;
+        qrBtn.hidden = true;
+        $("mConfirmBtn").hidden = false;
+        $("modalTitle").innerHTML = '<i class="fa-solid fa-triangle-exclamation text-rose-400"></i> Báo mất thẻ & Khóa thẻ';
+        $("mConfirmBtn").textContent = "Xác nhận phạt mất thẻ";
+        $("mConfirmBtn").className = "w-full sm:w-auto px-4 py-2 bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold rounded-xl shadow-lg shadow-rose-500/20 transition";
+      } else {
+        penaltyRow.hidden = true;
+        lostNotice.hidden = true;
+        $("modalTitle").innerHTML = '<i class="fa-solid fa-receipt text-blue-400"></i> Hóa đơn thanh toán đỗ xe';
+        $("mConfirmBtn").hidden = true;   // Đã bỏ thu tiền mặt: khách thanh toán bằng QR rồi ra qua Cổng ra
+        $("mConfirmBtn").className = "w-full sm:w-auto px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold rounded-xl shadow-lg shadow-blue-500/20 transition";
+        
+        if (total > 0) {
+          // Tạo mã VietQR động
+          const memo = "PARK " + uid;
+          const qrUrl = `https://img.vietqr.io/image/MB-0987654321-compact2.png?amount=${total}&addInfo=${encodeURIComponent(memo)}&accountName=${encodeURIComponent("BAI DO XE THONG MINH")}`;
+          $("mQrImg").src = qrUrl;
+          $("mQrMemo").textContent = memo;
+          qrBox.hidden = false;
+          qrBtn.hidden = false;
+        } else {
+          qrBox.hidden = true;
+          qrBtn.hidden = true;
+        }
+      }
+
+      $("mTotal").textContent = fmtMoney(total);
+
+      activeModalAction = () => {
+        const key = db.ref("history").push().key;
+        const updates = {};
+        updates["sessions/" + uid] = null;
+        if (lost && state.cards[uid]) updates["cards/" + uid + "/khoa"] = true;
+        updates["history/" + key] = {
+          loai: "ra",
+          doiTuong: "khach",
+          ai: uid,
+          gio: now,
+          gioVao: num(s.gioVao, now),
+          phut: Math.floor(minutes),
+          phi: phi,
+          phat: phat,
+          ghiChu: lost ? "Mất thẻ (Admin xử lý)" : "Admin thu tiền mặt trực tiếp"
+        };
+        run(db.ref().update(updates), lost ? `Đã xử lý mất thẻ ${uid}` : `Đã đóng phiên thẻ ${uid}`);
+        closeCheckoutModal();
+      };
+
+      $("checkoutModal").hidden = false;
+    }
+
+    function closeCheckoutModal() {
+      $("checkoutModal").hidden = true;
+      activeModalAction = null;
+      currentModalUid = null;
+    }
+
+    // Nút xác nhận thanh toán QR thành công -> Gửi tín hiệu để ESP32 Cổng ra tự động mở Barrier!
+    $("mQrPayBtn").addEventListener("click", async () => {
+      if (!currentModalUid) return;
+      const uid = currentModalUid;
+      try {
+        // Chỉ xác nhận khi Cổng ra đã yêu cầu thanh toán, tránh tạo phiên "ma" khi khách chưa quét thẻ ra
+        const snap = await db.ref("sessions/" + uid + "/thanhToan/trangThai").once("value");
+        if (snap.val() !== "cho_thanh_toan") {
+          toast("Khách chưa quét thẻ ở Cổng ra, chưa thể xác nhận thanh toán.", "error");
+          return;
+        }
+      } catch (e) {
+        showError("Không kiểm tra được trạng thái thanh toán: " + e.message);
+        return;
+      }
+      run(
+        db.ref("sessions/" + uid + "/thanhToan/trangThai").set("da_thanh_toan"),
+        "Đã xác nhận thanh toán VietQR! Đang mở Barrier cổng ra..."
+      ).then(() => {
+        closeCheckoutModal();
+      });
+    });
+
+    $("mConfirmBtn").addEventListener("click", () => {
+      if (activeModalAction) activeModalAction();
+    });
+
+    // ============ Quản lý: Cư dân ============
+    let editingResident = null;
+
+    function fillSlotSelect() {
+      const sel = $("rSlot");
+      const current = sel.value;
+      sel.innerHTML = '<option value="">-- Chọn ô đỗ riêng --</option>';
+      
+      residentSlotIds().forEach((k) => {
+        const owner = layout()[k] && layout()[k].chuXe;
+        const taken = owner && owner !== editingResident;
+        const opt = document.createElement("option");
+        opt.value = k;
+        opt.disabled = !!taken;
+        opt.textContent = taken ? `Ô ${k} (Đã gán cho ${owner})` : `Ô ${k} (Trống)`;
+        sel.appendChild(opt);
+      });
+      sel.value = current;
+    }
+
+    function resetResidentForm() {
+      editingResident = null;
+      $("residentForm").reset();
+      $("rId").readOnly = false;
+      $("rSubmit").innerHTML = '<i class="fa-solid fa-plus"></i> Thêm cư dân';
+      $("rCancel").hidden = true;
+      $("residentFormTitle").innerHTML = '<i class="fa-solid fa-user-plus text-blue-400"></i> Thêm cư dân mới';
+      fillSlotSelect();
+    }
+
+    function editResident(id) {
+      const r = state.residents[id];
+      if (!r) return;
+      editingResident = id;
+      fillSlotSelect();
+      $("rId").value = id;
+      $("rId").readOnly = true;
+      $("rName").value = r.ten || "";
+      $("rPlate").value = r.bienSo || "";
+      $("rApt").value = r.canHo || "";
+      $("rSlot").value = slotOwner(id);
+      $("rSubmit").innerHTML = '<i class="fa-solid fa-floppy-disk"></i> Lưu thay đổi';
+      $("rCancel").hidden = false;
+      $("residentFormTitle").innerHTML = `<i class="fa-solid fa-user-pen text-amber-400"></i> Sửa cư dân: ${id}`;
+      $("rName").focus();
+    }
+
+    $("rCancel").addEventListener("click", resetResidentForm);
+
+    $("residentForm").addEventListener("submit", (e) => {
+      e.preventDefault();
+      const rawId = $("rId").value.trim();
+      const id = editingResident ? rawId : rawId.toUpperCase().replace(/[^A-Z0-9_-]/g, "");
+      const ten = $("rName").value.trim();
+      const bienSo = $("rPlate").value.trim().toUpperCase();
+      const canHo = $("rApt").value.trim();
+      const slot = $("rSlot").value;
+
+      if (!ID_RE.test(id)) { showError("Mã cư dân chỉ gồm chữ, số, gạch dưới/ngang (tối đa 24 ký tự)."); return; }
+      if (!editingResident && state.residents[id]) { showError("Mã cư dân " + id + " đã tồn tại."); return; }
+      if (!slot) { showError("Vui lòng chỉ định ô đỗ riêng cho cư dân."); return; }
+      
+      const owner = layout()[slot] && layout()[slot].chuXe;
+      if (owner && owner !== id) { showError("Ô " + slot + " đã được gán cho " + owner + "."); return; }
+
+      const updates = {};
+      updates["residents/" + id + "/ten"] = ten;
+      updates["residents/" + id + "/bienSo"] = bienSo;
+      updates["residents/" + id + "/canHo"] = canHo;
+      if (!state.residents[id]) updates["residents/" + id + "/trongBai"] = false;
+      
+      const oldSlot = slotOwner(id);
+      if (oldSlot && oldSlot !== slot) updates["config/o/" + oldSlot + "/chuXe"] = null;
+      updates["config/o/" + slot + "/chuXe"] = id;
+      updates["config/o/" + slot + "/loai"] = "cu_dan";
+
+      run(db.ref().update(updates), editingResident ? "Đã lưu thông tin cư dân" : "Đã thêm cư dân thành công")
+        .then((ok) => { if (ok) resetResidentForm(); });
+    });
+
+    function deleteResident(id) {
+      const r = state.residents[id];
+      if (!r) return;
+      let text = `Bạn có chắc chắn muốn xóa cư dân "${id}" (${r.ten || ""})?`;
+      if (r.trongBai) text += "\nCảnh báo: Xe cư dân này hiện đang được ghi nhận TRONG BÃI.";
+      if (!confirm(text)) return;
+
+      const updates = {};
+      updates["residents/" + id] = null;
+      const slot = slotOwner(id);
+      if (slot) updates["config/o/" + slot + "/chuXe"] = null;
+      run(db.ref().update(updates), "Đã xóa cư dân thành công")
+        .then(() => { if (editingResident === id) resetResidentForm(); });
+    }
+
+    function renderResidents() {
+      const body = $("residentsBody");
+      body.innerHTML = "";
+      const q = ($("resSearchInput")?.value || "").trim().toLowerCase();
+      let ids = Object.keys(state.residents).sort();
+
+      if (q) {
+        ids = ids.filter(id => {
+          const r = state.residents[id] || {};
+          return id.toLowerCase().includes(q) || 
+                 (r.ten || "").toLowerCase().includes(q) || 
+                 (r.bienSo || "").toLowerCase().includes(q) || 
+                 (r.canHo || "").toLowerCase().includes(q);
+        });
+      }
+
+      if (!ids.length) {
+        body.innerHTML = `<tr><td colspan="7" class="py-6 text-center text-slate-500 italic">Chưa có cư dân nào phù hợp.</td></tr>`;
+        return;
+      }
+
+      ids.forEach((id) => {
+        const r = state.residents[id] || {};
+        const slot = slotOwner(id);
+        const tr = document.createElement("tr");
+        tr.className = "hover:bg-slate-800/30 transition-colors";
+        
+        tr.innerHTML = `
+          <td class="py-3 px-4 font-mono font-bold text-white">${id}</td>
+          <td class="py-3 px-4 font-medium text-slate-200">${r.ten || '--'}</td>
+          <td class="py-3 px-4 font-mono text-xs text-amber-400 font-semibold">${r.bienSo || '--'}</td>
+          <td class="py-3 px-4 text-xs text-slate-300">${r.canHo || '--'}</td>
+          <td class="py-3 px-4">
+            <span class="px-2 py-0.5 rounded font-mono text-xs font-bold ${slot ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20' : 'text-slate-500'}">
+              ${slot || 'Chưa gán'}
+            </span>
+          </td>
+          <td class="py-3 px-4">
+            <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium ${r.trongBai ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30' : 'bg-slate-800 text-slate-400'}">
+              <span class="w-1.5 h-1.5 rounded-full ${r.trongBai ? 'bg-emerald-400' : 'bg-slate-500'}"></span>
+              ${r.trongBai ? 'Trong bãi' : 'Ngoài bãi'}
+            </span>
+          </td>
+          <td class="py-3 px-4 text-center">
+            <div class="flex items-center justify-center gap-1.5">
+              <button onclick="editResident('${id}')" class="p-1.5 text-slate-400 hover:text-blue-400 hover:bg-slate-800 rounded-lg transition" title="Sửa thông tin">
+                <i class="fa-solid fa-pen-to-square"></i>
+              </button>
+              ${r.trongBai ? `
+                <button onclick="toggleResidentOut('${id}')" class="p-1.5 text-amber-400 hover:text-white hover:bg-amber-600/30 rounded-lg transition" title="Đặt về Ngoài bãi">
+                  <i class="fa-solid fa-right-from-bracket"></i>
+                </button>
+              ` : ''}
+              <button onclick="deleteResident('${id}')" class="p-1.5 text-slate-400 hover:text-rose-400 hover:bg-slate-800 rounded-lg transition" title="Xóa">
+                <i class="fa-solid fa-trash-can"></i>
+              </button>
+            </div>
+          </td>
+        `;
+        body.appendChild(tr);
+      });
+
+      fillSlotSelect();
+    }
+
+    function toggleResidentOut(id) {
+      if (confirm(`Đặt cư dân ${id} về trạng thái "Ngoài bãi"?`)) {
+        run(db.ref(`residents/${id}/trongBai`).set(false), "Đã cập nhật trạng thái");
+      }
+    }
+
+    $("resSearchInput")?.addEventListener("input", renderResidents);
+
+    // ============ Quản lý: Thẻ khách ============
+    $("cardForm").addEventListener("submit", (e) => {
+      e.preventDefault();
+      const uid = $("cId").value.toUpperCase().replace(/[^A-Z0-9_-]/g, "");
+      const ten = $("cName").value.trim();
+      if (!uid) { showError("UID thẻ không hợp lệ."); return; }
+      if (state.cards[uid]) { showError("Thẻ UID " + uid + " đã được đăng ký trước đó."); return; }
+      
+      run(db.ref("cards/" + uid).set({ ten: ten, khoa: false }), "Đã thêm thẻ khách thành công")
+        .then((ok) => { if (ok) $("cardForm").reset(); });
+    });
+
+    function simulateIn(uid) {
+      const c = state.cards[uid];
+      if (!c || c.khoa) { showError("Thẻ đang bị khóa hoặc chưa đăng ký."); return; }
+      if (state.sessions[uid]) { showError("Thẻ này đang có phiên đỗ xe chưa đóng."); return; }
+      if (Object.keys(state.sessions).length >= cfg("khachToiDa", 2)) { 
+        showError("Bãi đã hết chỗ cho khách (Đạt mức tối đa " + cfg("khachToiDa", 2) + " xe)."); 
+        return; 
+      }
+
+      const now = Date.now();
+      const key = db.ref("history").push().key;
+      const updates = {};
+      updates["sessions/" + uid] = { gioVao: now };
+      updates["history/" + key] = { 
+        loai: "vao", 
+        doiTuong: "khach", 
+        ai: uid, 
+        gio: now, 
+        ghiChu: "Mô phỏng quẹt cổng vào từ Web" 
+      };
+      run(db.ref().update(updates), "Đã mô phỏng quẹt thẻ vào bãi");
+    }
+
+    function renderCards() {
+      const body = $("cardsBody");
+      body.innerHTML = "";
+      const ids = Object.keys(state.cards).sort();
+
+      if (!ids.length) {
+        body.innerHTML = `<tr><td colspan="4" class="py-6 text-center text-slate-500 italic">Chưa có thẻ khách nào trong hệ thống.</td></tr>`;
+        return;
+      }
+
+      ids.forEach((uid) => {
+        const c = state.cards[uid] || {};
+        const inSession = !!state.sessions[uid];
+        const tr = document.createElement("tr");
+        tr.className = "hover:bg-slate-800/30 transition-colors";
+
+        let badgeStatus = `<span class="px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">Sẵn sàng</span>`;
+        if (c.khoa) {
+          badgeStatus = `<span class="px-2.5 py-0.5 rounded-full text-xs font-medium bg-rose-500/10 text-rose-400 border border-rose-500/20">Đã khóa</span>`;
+        } else if (inSession) {
+          badgeStatus = `<span class="px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-500/10 text-amber-400 border border-amber-500/20">Đang đỗ xe</span>`;
+        }
+
+        tr.innerHTML = `
+          <td class="py-3 px-4 font-mono font-bold text-white">${uid}</td>
+          <td class="py-3 px-4 font-medium text-slate-300">${c.ten || '--'}</td>
+          <td class="py-3 px-4">${badgeStatus}</td>
+          <td class="py-3 px-4 text-center">
+            <div class="flex items-center justify-center gap-1.5">
+              <button onclick="renameCard('${uid}')" class="p-1.5 text-slate-400 hover:text-blue-400 hover:bg-slate-800 rounded-lg transition" title="Đổi tên gợi nhớ">
+                <i class="fa-solid fa-pen"></i>
+              </button>
+              <button onclick="toggleCardLock('${uid}', ${!c.khoa})" class="p-1.5 ${c.khoa ? 'text-emerald-400 hover:bg-emerald-500/20' : 'text-amber-400 hover:bg-amber-500/20'} rounded-lg transition" title="${c.khoa ? 'Mở khóa' : 'Khóa thẻ'}">
+                <i class="fa-solid ${c.khoa ? 'fa-lock-open' : 'fa-lock'}"></i>
+              </button>
+              ${state.testMode && !c.khoa && !inSession ? `
+                <button onclick="simulateIn('${uid}')" class="px-2 py-1 bg-emerald-600/20 hover:bg-emerald-600 text-emerald-400 hover:text-white rounded-lg text-xs font-semibold border border-emerald-500/30 transition flex items-center gap-1" title="Mô phỏng vào">
+                  <i class="fa-solid fa-play text-[10px]"></i> Giả lập vào
+                </button>
+              ` : ''}
+              <button onclick="deleteCard('${uid}', ${inSession})" class="p-1.5 text-slate-400 hover:text-rose-400 hover:bg-slate-800 rounded-lg transition" title="Xóa thẻ">
+                <i class="fa-solid fa-trash-can"></i>
+              </button>
+            </div>
+          </td>
+        `;
+        body.appendChild(tr);
+      });
+    }
+
+    function renameCard(uid) {
+      const c = state.cards[uid];
+      const n = prompt("Nhập tên mới cho thẻ " + uid + ":", c ? c.ten : "");
+      if (n !== null && n.trim()) {
+        run(db.ref(`cards/${uid}/ten`).set(n.trim()), "Đã đổi tên thẻ thành công");
+      }
+    }
+
+    function toggleCardLock(uid, lock) {
+      run(db.ref(`cards/${uid}/khoa`).set(lock), lock ? `Đã khóa thẻ ${uid}` : `Đã mở khóa thẻ ${uid}`);
+    }
+
+    function deleteCard(uid, inSession) {
+      if (inSession) { showError("Thẻ này đang có phiên gửi xe, hãy đóng phiên trước khi xóa."); return; }
+      if (confirm(`Bạn có chắc chắn muốn xóa thẻ ${uid}?`)) {
+        run(db.ref(`cards/${uid}`).set(null), "Đã xóa thẻ");
+      }
+    }
+
+    // ============ Lịch sử & Doanh thu ============
+    const HIST_TYPE = { vao: "Vào bãi", ra: "Ra bãi", tu_choi: "Bị từ chối" };
+    const HIST_WHO = { cu_dan: "Cư dân", khach: "Khách vãng lai" };
+
+    function filteredHistory() {
+      const range = $("hRange").value;
+      const type = $("hType").value;
+      const who = $("hWho").value;
+      const q = $("hSearch").value.trim().toUpperCase();
+      const today = startOfDay(Date.now());
+      let from = 0;
+
+      if (range === "today") from = today;
+      else if (range !== "all") from = today - (parseInt(range, 10) - 1) * 86400000;
+
+      return Object.values(state.history)
+        .filter((h) => h && (h.gio || 0) >= from)
+        .filter((h) => !type || h.loai === type)
+        .filter((h) => !who || h.doiTuong === who)
+        .filter((h) => !q || String(h.ai || "").toUpperCase().includes(q))
+        .sort((a, b) => (b.gio || 0) - (a.gio || 0));
+    }
+
+    function renderHistory() {
+      const rows = filteredHistory();
+
+      let fee = 0, pen = 0, guestsOut = 0, rejects = 0;
+      const byDay = {};
+
+      rows.forEach((h) => {
+        if (h.loai === "tu_choi") rejects++;
+        if (h.loai === "ra" && h.doiTuong === "khach") {
+          guestsOut++;
+          const f = num(h.phi, 0), p = num(h.phat, 0);
+          fee += f; pen += p;
+          const k = dayKey(h.gio || 0);
+          if (!byDay[k]) byDay[k] = { n: 0, fee: 0, pen: 0 };
+          byDay[k].n++; byDay[k].fee += f; byDay[k].pen += p;
+        }
+      });
+
+      $("sumTotal").textContent = fmtMoney(fee + pen);
+      $("sumFee").textContent = fmtMoney(fee);
+      $("sumPenalty").textContent = fmtMoney(pen);
+      $("sumGuests").textContent = guestsOut;
+      $("sumReject").textContent = rejects;
+
+      // Doanh thu theo ngày
+      const dayBody = $("dayBody");
+      dayBody.innerHTML = "";
+      const days = Object.keys(byDay).sort().reverse();
+      
+      if (!days.length) {
+        dayBody.innerHTML = `<tr><td colspan="6" class="py-6 text-center text-slate-500 italic">Không có dữ liệu lượt ra của khách trong khoảng này.</td></tr>`;
+      } else {
+        const max = Math.max(1, ...days.map((d) => byDay[d].fee + byDay[d].pen));
+        days.forEach((d) => {
+          const v = byDay[d];
+          const totalDay = v.fee + v.pen;
+          const percent = Math.round((totalDay / max) * 100);
+
+          const tr = document.createElement("tr");
+          tr.className = "hover:bg-slate-800/30 transition-colors";
+          tr.innerHTML = `
+            <td class="py-3 px-4 font-mono font-semibold text-slate-200">${d.split("-").reverse().join("/")}</td>
+            <td class="py-3 px-4 text-right font-medium text-slate-300">${v.n} lượt</td>
+            <td class="py-3 px-4 text-right font-mono text-blue-400 font-semibold">${fmtMoney(v.fee)}</td>
+            <td class="py-3 px-4 text-right font-mono text-rose-400 font-semibold">${fmtMoney(v.pen)}</td>
+            <td class="py-3 px-4 text-right font-mono text-emerald-400 font-bold">${fmtMoney(totalDay)}</td>
+            <td class="py-3 px-4">
+              <div class="w-full bg-slate-800 rounded-full h-2 overflow-hidden flex items-center">
+                <div class="bg-gradient-to-r from-blue-500 to-emerald-400 h-full rounded-full transition-all duration-500" style="width: ${percent}%"></div>
+              </div>
+            </td>
+          `;
+          dayBody.appendChild(tr);
+        });
+      }
+
+      // Nhật ký ra vào chi tiết
+      const body = $("historyBody");
+      body.innerHTML = "";
+      const LIMIT = 100;
+      
+      if (!rows.length) {
+        body.innerHTML = `<tr><td colspan="8" class="py-6 text-center text-slate-500 italic">Không có sự kiện nào khớp bộ lọc.</td></tr>`;
+      } else {
+        rows.slice(0, LIMIT).forEach((h) => {
+          const tr = document.createElement("tr");
+          tr.className = "hover:bg-slate-800/30 transition-colors";
+
+          let typeBadge = `<span class="px-2 py-0.5 rounded text-xs font-semibold bg-slate-800 text-slate-400">${h.loai}</span>`;
+          if (h.loai === "vao") {
+            typeBadge = `<span class="px-2 py-0.5 rounded text-xs font-semibold bg-emerald-500/15 text-emerald-400 border border-emerald-500/20"><i class="fa-solid fa-arrow-right-to-bracket text-[10px]"></i> Vào</span>`;
+          } else if (h.loai === "ra") {
+            typeBadge = `<span class="px-2 py-0.5 rounded text-xs font-semibold bg-blue-500/15 text-blue-400 border border-blue-500/20"><i class="fa-solid fa-arrow-right-from-bracket text-[10px]"></i> Ra</span>`;
+          } else if (h.loai === "tu_choi") {
+            typeBadge = `<span class="px-2 py-0.5 rounded text-xs font-semibold bg-rose-500/15 text-rose-400 border border-rose-500/20"><i class="fa-solid fa-ban text-[10px]"></i> Từ chối</span>`;
+          }
+
+          tr.innerHTML = `
+            <td class="py-3 px-4 text-xs text-slate-400">${h.gio ? fmtTime(h.gio) : '--'}</td>
+            <td class="py-3 px-4 text-xs font-medium text-slate-300">${HIST_WHO[h.doiTuong] || h.doiTuong || '--'}</td>
+            <td class="py-3 px-4 font-mono font-semibold text-white text-xs">${h.ai || '--'}</td>
+            <td class="py-3 px-4">${typeBadge}</td>
+            <td class="py-3 px-4 text-right font-mono text-xs text-slate-300">${h.phut !== undefined ? h.phut + " phút" : '--'}</td>
+            <td class="py-3 px-4 text-right font-mono text-xs text-blue-400 font-semibold">${h.phi !== undefined ? fmtMoney(num(h.phi, 0)) : '--'}</td>
+            <td class="py-3 px-4 text-right font-mono text-xs text-rose-400 font-semibold">${h.phat ? fmtMoney(num(h.phat, 0)) : '--'}</td>
+            <td class="py-3 px-4 text-xs text-slate-400 truncate max-w-[180px]">${h.ghiChu || ''}</td>
+          `;
+          body.appendChild(tr);
+        });
+      }
+
+      $("historyNote").textContent = rows.length > LIMIT
+        ? `Hiển thị 100 / ${rows.length} lượt mới nhất (Xuất CSV để xem đủ)`
+        : `Tải từ 1000 sự kiện gần nhất`;
+    }
+
+    ["hRange", "hType", "hWho"].forEach((id) => $(id).addEventListener("change", renderHistory));
+    $("hSearch").addEventListener("input", renderHistory);
+
+    // Xuất CSV chuẩn UTF-8
+    function csvCell(v) {
+      const s = v === undefined || v === null ? "" : String(v);
+      return '"' + s.replace(/"/g, '""') + '"';
+    }
+
+    $("hExport").addEventListener("click", () => {
+      const rows = filteredHistory();
+      const head = ["Thời gian", "Đối tượng", "Mã/Thẻ", "Hướng", "Giờ vào", "Phút đỗ", "Phí", "Phạt", "Ghi chú"];
+      const lines = [head.map(csvCell).join(",")];
+      
+      rows.forEach((h) => {
+        lines.push([
+          h.gio ? fmtTime(h.gio) : "", 
+          HIST_WHO[h.doiTuong] || h.doiTuong, 
+          h.ai, 
+          HIST_TYPE[h.loai] || h.loai,
+          h.gioVao ? fmtTime(h.gioVao) : "", 
+          h.phut, 
+          h.phi, 
+          h.phat, 
+          h.ghiChu
+        ].map(csvCell).join(","));
+      });
+
+      const blob = new Blob(["\ufeff" + lines.join("\r\n")], { type: "text/csv;charset=utf-8" });
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = "Bao_cao_Smart_Parking_" + dayKey(Date.now()) + ".csv";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+    });
+
+    // ============ Cấu hình ============
+    function fillSettings(force) {
+      if (!force && $("settingsForm").contains(document.activeElement)) return;
+      $("sPrice").value = cfg("donGiaMoiGio", 5000);
+      $("sBlock").value = cfg("blockPhut", 60);
+      $("sFree").value = cfg("mienPhiPhut", 15);
+      $("sPenalty").value = cfg("phiPhatMatThe", 100000);
+      $("sMax").value = cfg("khachToiDa", 2);
+    }
+
+    $("settingsForm").addEventListener("submit", (e) => {
+      e.preventDefault();
+      const price = parseInt($("sPrice").value, 10);
+      const block = parseInt($("sBlock").value, 10);
+      const free = parseInt($("sFree").value, 10);
+      const penalty = parseInt($("sPenalty").value, 10);
+      const max = parseInt($("sMax").value, 10);
+
+      if ([price, block, free, penalty, max].some((v) => !Number.isInteger(v) || v < 0)) {
+        showError("Các giá trị cấu hình phải là số nguyên dương."); 
+        return; 
+      }
+      if (block < 1) { 
+        showError("Block tính phí tối thiểu phải từ 1 phút trở lên."); 
+        return; 
+      }
+
+      const guestSlots = guestSlotIds().length;
+      if (guestSlots > 0 && max > guestSlots) { 
+        showError(`Số khách tối đa không nên vượt quá số ô dành cho khách (${guestSlots} ô).`); 
+        return; 
+      }
+
+      run(db.ref().update({
+        "config/donGiaMoiGio": price,
+        "config/blockPhut": block,
+        "config/mienPhiPhut": free,
+        "config/phiPhatMatThe": penalty,
+        "config/khachToiDa": max
+      }), "Đã lưu cài đặt cấu hình bãi xe");
+    });
+
+    function renderLayout() {
+      const body = $("layoutBody");
+      body.innerHTML = "";
+      const keys = slotKeys();
+      
+      if (!keys.length) {
+        body.innerHTML = `<tr><td colspan="3" class="py-6 text-center text-slate-500 italic">Chưa có ô nào được khai báo trong config/o.</td></tr>`;
+        return;
+      }
+
+      keys.forEach((k) => {
+        const type = slotType(k);
+        const owner = layout()[k] && layout()[k].chuXe;
+        const tr = document.createElement("tr");
+        tr.className = "hover:bg-slate-800/30 transition-colors";
+        
+        tr.innerHTML = `
+          <td class="py-3 px-4 font-mono font-bold text-white">${k}</td>
+          <td class="py-3 px-4">
+            <span class="px-2.5 py-0.5 rounded-full text-xs font-semibold ${type === 'cu_dan' ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20' : 'bg-blue-500/10 text-blue-400 border border-blue-500/20'}">
+              ${type === 'cu_dan' ? 'Cư dân' : 'Khách vãng lai'}
+            </span>
+          </td>
+          <td class="py-3 px-4 font-mono text-xs text-slate-300">
+            ${owner ? `${owner} ${state.residents[owner] ? `(${state.residents[owner].ten})` : ''}` : '<span class="text-slate-500">Chưa gán</span>'}
+          </td>
+        `;
+        body.appendChild(tr);
+      });
+    }
+
+    // ============ Tab Navigation ============
+    function showTab(name) {
+      document.querySelectorAll(".tab-btn").forEach((b) => {
+        const isCurrent = b.dataset.tab === name;
+        if (isCurrent) {
+          b.className = "tab-btn px-4 py-2 text-xs sm:text-sm font-semibold rounded-lg text-white bg-blue-600/90 shadow-md shadow-blue-500/20 transition flex items-center gap-2 whitespace-nowrap";
+        } else {
+          b.className = "tab-btn px-4 py-2 text-xs sm:text-sm font-medium rounded-lg text-slate-400 hover:text-slate-200 hover:bg-slate-800/50 transition flex items-center gap-2 whitespace-nowrap";
+        }
+      });
+
+      document.querySelectorAll(".tabpanel").forEach((p) => {
+        p.hidden = p.id !== "tab-" + name;
+      });
+
+      if (name === "settings") fillSettings(true);
+    }
+
+    document.querySelectorAll(".tab-btn").forEach((b) => {
+      b.addEventListener("click", () => showTab(b.dataset.tab));
+    });
+
+    $("testMode").addEventListener("change", (e) => {
+      state.testMode = e.target.checked;
+      renderAll();
+      toast(state.testMode ? "Đã bật Chế độ thử (Có thể click ô)" : "Đã tắt Chế độ thử", "info");
+    });
+
+    function renderAll() {
+      renderOverview();
+      renderResidents();
+      renderCards();
+      renderHistory();
+      renderLayout();
+      fillSettings(false);
+    }
+
+    // ============ Trạng thái thiết bị ============
+    const DEVICE_LIST = [
+      { key: "gate-in", name: "Cổng vào", icon: "fa-door-open" },
+      { key: "gate-out", name: "Cổng ra", icon: "fa-right-from-bracket" },
+      { key: "lot", name: "Bãi đỗ", icon: "fa-square-parking", viaUart: true },   // không có WiFi riêng, báo qua cổng vào bằng UART
+    ];
+    const DEVICE_OFFLINE_MS = 45000;   // quá thời gian này không báo về thì coi là mất kết nối
+    const RESET_TEXT = {
+      POWERON: "Cấp nguồn",
+      EXT: "Nút EN / reset ngoài",
+      SW: "Reset bằng phần mềm",
+      PANIC: "Lỗi chương trình (panic)",
+      INT_WDT: "Treo (watchdog)",
+      TASK_WDT: "Treo (watchdog)",
+      WDT: "Treo (watchdog)",
+      BROWNOUT: "Sụt nguồn",
+      DEEPSLEEP: "Thoát ngủ sâu",
+      SDIO: "SDIO",
+      UNKNOWN: "Không rõ",
+    };
+    let serverOffsetMs = 0;
+
+    function mk(tag, cls, text) {
+      const e = document.createElement(tag);
+      if (cls) e.className = cls;
+      if (text !== undefined) e.textContent = text;
+      return e;
+    }
+
+    function fmtDuration(sec) {
+      sec = Math.max(0, Math.floor(sec));
+      if (sec < 60) return sec + " giây";
+      const m = Math.floor(sec / 60);
+      if (m < 60) return m + " phút";
+      const h = Math.floor(m / 60);
+      if (h < 24) return h + " giờ " + (m % 60) + " phút";
+      return Math.floor(h / 24) + " ngày " + (h % 24) + " giờ";
+    }
+
+    function rssiInfo(r) {
+      if (typeof r !== "number") return { text: "-", cls: "text-slate-400" };
+      if (r >= -60) return { text: r + " dBm (tốt)", cls: "text-emerald-400" };
+      if (r >= -70) return { text: r + " dBm (khá)", cls: "text-emerald-400" };
+      if (r >= -80) return { text: r + " dBm (yếu)", cls: "text-amber-400" };
+      return { text: r + " dBm (rất yếu)", cls: "text-red-400" };
+    }
+
+    function devRow(label, value, valueCls) {
+      const row = mk("div", "flex items-baseline justify-between gap-3 text-xs mt-1");
+      row.appendChild(mk("span", "text-slate-500", label));
+      row.appendChild(mk("span", valueCls || "text-slate-300 text-right", value));
+      return row;
+    }
+
+    function renderDevices() {
+      const grid = $("deviceGrid");
+      if (!grid) return;
+      const now = Date.now() + serverOffsetMs;
+      grid.innerHTML = "";
+
+      DEVICE_LIST.forEach((d) => {
+        const info = state.devices[d.key];
+        const seen = info && typeof info.lastSeen === "number" ? info.lastSeen : 0;
+        const age = seen ? now - seen : Infinity;
+        const online = age <= DEVICE_OFFLINE_MS;
+
+        let border = "border-slate-800", dotCls = "bg-slate-500", statusText = "Chưa từng kết nối", statusCls = "text-slate-400";
+        if (seen && online) {
+          border = "border-emerald-500/30"; dotCls = "bg-emerald-500"; statusText = "Đang kết nối"; statusCls = "text-emerald-400";
+        } else if (seen) {
+          border = "border-red-500/40"; dotCls = "bg-red-500"; statusText = "Mất kết nối"; statusCls = "text-red-400";
+        }
+
+        const card = mk("div", "rounded-xl border bg-slate-950/40 p-3 " + border);
+
+        const head = mk("div", "flex items-center justify-between");
+        const title = mk("div", "flex items-center gap-2 text-sm font-semibold text-slate-100");
+        title.appendChild(mk("i", "fa-solid " + d.icon + " text-slate-400"));
+        title.appendChild(document.createTextNode(d.name));
+        const badge = mk("span", "inline-flex items-center gap-1.5 text-xs font-semibold " + statusCls);
+        badge.appendChild(mk("span", "inline-block h-2 w-2 rounded-full " + dotCls));
+        badge.appendChild(document.createTextNode(statusText));
+        head.appendChild(title);
+        head.appendChild(badge);
+        card.appendChild(head);
+
+        if (!seen) {
+          card.appendChild(mk("div", "text-xs text-slate-500 mt-2", d.viaUart
+            ? "Chưa nhận được tín hiệu từ bãi đỗ. Kiểm tra dây UART nối với cổng vào, nguồn board bãi hoặc cổng vào chưa online."
+            : "Chưa nhận được tín hiệu nào. Board đang tắt, chưa vào được WiFi hoặc chưa nạp firmware mới."));
+          grid.appendChild(card);
+          return;
+        }
+
+        card.appendChild(devRow("Lần cuối thấy", online ? Math.max(0, Math.round(age / 1000)) + " giây trước" : fmtDuration(age / 1000) + " trước", online ? undefined : "text-red-400 text-right"));
+        if (d.viaUart) {
+          card.appendChild(devRow("Kết nối", "UART qua cổng vào"));
+          if (seen && !online) {
+            card.appendChild(mk("div", "mt-2 text-[11px] rounded-lg bg-amber-500/10 text-amber-300 px-2 py-1.5", "Kiểm tra dây UART, nguồn board bãi và xem cổng vào còn online không."));
+          }
+        } else {
+          if (info.ip) card.appendChild(devRow("Địa chỉ IP", String(info.ip)));
+          const rs = rssiInfo(info.rssi);
+          card.appendChild(devRow("Sóng WiFi", rs.text, rs.cls + " text-right"));
+        }
+        if (typeof info.uptimeS === "number") card.appendChild(devRow("Chạy liên tục", fmtDuration(info.uptimeS)));
+        if (typeof info.queue === "number") {
+          const q = info.queue + " lệnh chờ gửi" + (info.dropped > 0 ? " · bỏ " + info.dropped : "");
+          card.appendChild(devRow("Hàng đợi", q, info.queue > 0 ? "text-amber-400 text-right" : undefined));
+        }
+        if (typeof info.heap === "number") card.appendChild(devRow("RAM trống", Math.round(info.heap / 1024) + " KB"));
+        if (info.reset) {
+          const rt = RESET_TEXT[info.reset] || String(info.reset);
+          const bad = info.reset === "BROWNOUT" || info.reset === "PANIC" || /WDT/.test(info.reset);
+          card.appendChild(devRow("Khởi động lần cuối", rt + (info.boots ? " (lần " + info.boots + ")" : ""), bad ? "text-amber-400 text-right" : undefined));
+          if (info.reset === "BROWNOUT") {
+            card.appendChild(mk("div", "mt-2 text-[11px] rounded-lg bg-amber-500/10 text-amber-300 px-2 py-1.5", "Board khởi động lại do sụt nguồn. Kiểm tra nguồn cấp (điện áp, dòng, tụ) và nguồn riêng cho servo."));
+          }
+        }
+        grid.appendChild(card);
+      });
+    }
+
+    // Giờ máy chủ Firebase: tránh lệch đồng hồ giữa máy tính và ESP32 làm báo nhầm mất kết nối
+    db.ref(".info/serverTimeOffset").on("value", (snap) => {
+      serverOffsetMs = snap.val() || 0;
+      renderDevices();
+    });
+
+    // Lật trạng thái sang "Mất kết nối" khi thiết bị ngừng báo, dù không có dữ liệu mới
+    setInterval(renderDevices, 5000);
+
+    // ============ Firebase Realtime Listener ============
+    const activeRefs = [];
+
+    function startListening() {
+      stopListening();
+      ["config", "residents", "slots", "cards", "sessions", "history"].forEach((node) => {
+        const ref = node === "history" ? db.ref("history").limitToLast(1000) : db.ref(node);
+        ref.on(
+          "value",
+          (snap) => {
+            state[node] = snap.val() || {};
+            renderAll();
+          },
+          (err) => showError("Không thể đọc nhánh " + node + " (" + err.code + "). Kiểm tra quy tắc Realtime Database.")
+        );
+        activeRefs.push(ref);
+      });
+
+      const devRef = db.ref("devices");
+      devRef.on(
+        "value",
+        (snap) => {
+          state.devices = snap.val() || {};
+          renderDevices();
+        },
+        (err) => showError("Không thể đọc nhánh devices (" + err.code + "). Kiểm tra quy tắc Realtime Database.")
+      );
+      activeRefs.push(devRef);
+    }
+
+    function stopListening() {
+      activeRefs.forEach((r) => r.off());
+      activeRefs.length = 0;
+      ["config", "residents", "slots", "cards", "sessions", "history", "devices"].forEach((k) => { state[k] = {}; });
+    }
+
+    // Trạng thái kết nối Firebase
+    db.ref(".info/connected").on("value", (snap) => {
+      const on = snap.val() === true;
+      const dot = $("connDot");
+      const ping = $("connPing");
+      const text = $("connText");
+
+      if (on) {
+        dot.className = "relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500";
+        ping.className = "animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75";
+        text.textContent = "Hệ thống kết nối";
+        text.className = "text-emerald-400 font-medium";
+      } else {
+        dot.className = "relative inline-flex rounded-full h-2.5 w-2.5 bg-red-500";
+        ping.className = "animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75";
+        text.textContent = "Mất kết nối";
+        text.className = "text-red-400 font-medium";
+      }
+    });
+
+    // Cập nhật thời gian gửi xe liên tục mỗi 30s
+    setInterval(() => {
+      if (Object.keys(state.sessions).length > 0) {
+        renderSessions();
+      }
+    }, 30000);
+
+    // ============ Đăng nhập & Xác thực ============
+    $("togglePassword").addEventListener("click", () => {
+      const pass = $("password");
+      const icon = $("togglePassword").querySelector("i");
+      if (pass.type === "password") {
+        pass.type = "text";
+        icon.className = "fa-regular fa-eye-slash";
+      } else {
+        pass.type = "password";
+        icon.className = "fa-regular fa-eye";
+      }
+    });
+
+    function loginMessage(code) {
+      switch (code) {
+        case "auth/invalid-credential":
+        case "auth/wrong-password":
+        case "auth/user-not-found":
+          return "Email hoặc mật khẩu không chính xác.";
+        case "auth/invalid-email": return "Địa chỉ email không đúng định dạng.";
+        case "auth/too-many-requests": return "Thử đăng nhập sai quá nhiều lần. Vui lòng đợi vài phút.";
+        case "auth/network-request-failed": return "Không thể kết nối đến máy chủ xác thực.";
+        default: return "Đăng nhập thất bại (" + code + ").";
+      }
+    }
+
+    $("loginForm").addEventListener("submit", (e) => {
+      e.preventDefault();
+      const errBox = $("loginError");
+      errBox.hidden = true;
+      const btn = $("loginBtn");
+      btn.disabled = true;
+      btn.innerHTML = '<i class="fa-solid fa-spinner animate-spin"></i> <span>Đang xác thực...</span>';
+
+      auth.signInWithEmailAndPassword($("email").value.trim(), $("password").value)
+        .catch((err) => {
+          $("loginErrorText").textContent = loginMessage(err.code);
+          errBox.hidden = false;
+        })
+        .finally(() => {
+          btn.disabled = false;
+          btn.innerHTML = '<span>Đăng nhập hệ thống</span> <i class="fa-solid fa-arrow-right text-xs"></i>';
+        });
+    });
+
+    $("logoutBtn").addEventListener("click", () => {
+      if (confirm("Bạn có muốn đăng xuất khỏi trang quản trị?")) {
+        auth.signOut();
+      }
+    });
+
+    auth.onAuthStateChanged((user) => {
+      $("loginPanel").hidden = !!user;
+      $("app").hidden = !user;
+      $("userEmail").textContent = user ? user.email : "";
+
+      if (user) {
+        $("password").value = "";
+        $("errorBanner").hidden = true;
+        resetResidentForm();
+        startListening();
+        showTab("overview");
+      } else {
+        stopListening();
+      }
+    });
+  </script>
+</body>
+</html>

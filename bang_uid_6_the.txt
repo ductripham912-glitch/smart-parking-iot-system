@@ -1,0 +1,69 @@
+BẢNG UID 6 THẺ / TAG (đọc bằng RC522 + ESP32)
+================================================
+
+STT | Tên thẻ        | UID                     | Số byte | Loại chip
+----+----------------+-------------------------+---------+-------------------
+ 1  | Thẻ trắng      | 7E 5C F3 06             |    4    | MIFARE Classic 1K
+ 2  | Tag móc khóa   | FD 8F F9 06             |    4    | MIFARE Classic 1K
+ 3  | Tag xanh 1     | 0D CC 29 07             |    4    | MIFARE Classic 1K
+ 4  | Tag xanh 2     | EB 17 32 07             |    4    | MIFARE Classic 1K
+ 5  | Miếng dán 1    | 1D 42 86 DE 1D 10 80    |    7    | NTAG213
+ 6  | Miếng dán 2    | 1D 44 86 DE 1D 10 80    |    7    | NTAG213
+
+
+THÔNG TIN CHI TIẾT
+------------------------------------------------
+
+Thẻ 1-4 (MIFARE Classic 1K):
+  - SAK  : 08
+  - ATQA : 04 00
+  - Key mặc định: FF FF FF FF FF FF
+  - Access bits : FF 07 80
+  - Dữ liệu: trống
+  - BCC: Thẻ trắng = D7, Tag móc khóa = 8D, Tag xanh 1 = EF, Tag xanh 2 = C9
+
+Thẻ 5-6 (NTAG213):
+  - SAK  : 00
+  - Dung lượng: 144 byte dùng được (page 4 đến page 39)
+  - Capability Container: E1 10 12 00
+  - Dữ liệu: NDEF rỗng (03 00 FE)
+  - Chưa khóa (lock bytes = 00 00)
+  - Miếng dán 1: BCC0 = 51, BCC1 = 53
+  - Miếng dán 2: BCC0 = 57, BCC1 = 53
+
+
+CODE C++ DÁN VÀO PLATFORMIO
+------------------------------------------------
+
+struct TheHopLe {
+  const char* ten;
+  byte size;
+  byte uid[7];
+};
+
+const TheHopLe DANH_SACH[] = {
+  {"The trang",    4, {0x7E, 0x5C, 0xF3, 0x06}},
+  {"Tag moc khoa", 4, {0xFD, 0x8F, 0xF9, 0x06}},
+  {"Tag xanh 1",   4, {0x0D, 0xCC, 0x29, 0x07}},
+  {"Tag xanh 2",   4, {0xEB, 0x17, 0x32, 0x07}},
+  {"Mieng dan 1",  7, {0x1D, 0x42, 0x86, 0xDE, 0x1D, 0x10, 0x80}},
+  {"Mieng dan 2",  7, {0x1D, 0x44, 0x86, 0xDE, 0x1D, 0x10, 0x80}}
+};
+const int SO_THE = sizeof(DANH_SACH) / sizeof(DANH_SACH[0]);
+
+int timThe(MFRC522::Uid &u) {
+  for (int i = 0; i < SO_THE; i++) {
+    if (DANH_SACH[i].size == u.size &&
+        memcmp(DANH_SACH[i].uid, u.uidByte, u.size) == 0) {
+      return i;
+    }
+  }
+  return -1;
+}
+
+
+LƯU Ý
+------------------------------------------------
+  - Không ghi vào block 0 và các sector trailer (block 3, 7, 11, ...) của MIFARE Classic.
+  - Không ghi vào page 0-3 và page 40-44 của NTAG213.
+  - UID của MIFARE Classic không mã hóa, có thể bị sao chép, chỉ nên dùng để test.
